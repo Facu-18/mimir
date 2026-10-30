@@ -2,7 +2,10 @@ import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
 import { AppModule } from '../src/app.module.js';
 import { PrismaService } from '../src/prisma/prisma.service.js';
-import { DEFAULT_WORKSPACE_ID } from '../src/workspaces/workspaces.service.js';
+import {
+  DEFAULT_WORKSPACE_ID,
+  WorkspacesService,
+} from '../src/workspaces/workspaces.service.js';
 import { resetDatabase } from './support/reset-database.js';
 
 async function bootApp(): Promise<INestApplication> {
@@ -50,6 +53,21 @@ describe('Default workspace bootstrap', () => {
       expect(workspaces[0].name).toBe('Renamed by user');
     } finally {
       await second.close();
+    }
+  });
+
+  it('recreates the default workspace lazily when it is missing', async () => {
+    const app = await bootApp();
+    try {
+      const prisma = app.get(PrismaService);
+      await prisma.workspace.deleteMany();
+
+      const workspace = await app.get(WorkspacesService).getDefault();
+
+      expect(workspace.id).toBe(DEFAULT_WORKSPACE_ID);
+      await expect(prisma.workspace.count()).resolves.toBe(1);
+    } finally {
+      await app.close();
     }
   });
 });
