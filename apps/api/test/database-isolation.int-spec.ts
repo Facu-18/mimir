@@ -23,8 +23,10 @@ describe('resolveTestDatabaseUrl', () => {
   });
 
   it('refuses a database whose name does not end in _test', async () => {
-    const { resolveTestDatabaseUrl } = await import('./support/test-database.js');
-    process.env.TEST_DATABASE_URL = 'postgresql://mimir:mimir@localhost:5433/mimir';
+    const { resolveTestDatabaseUrl } =
+      await import('./support/test-database.js');
+    process.env.TEST_DATABASE_URL =
+      'postgresql://mimir:mimir@localhost:5433/mimir';
 
     expect(() => resolveTestDatabaseUrl()).toThrow(
       'Refusing to run integration tests against "mimir"',

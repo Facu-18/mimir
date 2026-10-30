@@ -4,7 +4,9 @@ import type { PrismaService } from '../prisma/prisma.service.js';
 
 describe('HealthController', () => {
   it('reports the database as up when the probe query succeeds', async () => {
-    const prisma = { $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]) };
+    const prisma = {
+      $queryRaw: vi.fn().mockResolvedValue([{ '?column?': 1 }]),
+    };
     const controller = new HealthController(prisma as unknown as PrismaService);
 
     await expect(controller.check()).resolves.toEqual({

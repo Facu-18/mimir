@@ -94,7 +94,10 @@ describe('Database schema', () => {
       const workspace = await createWorkspace();
       await createProject(workspace.id, 'SB');
 
-      await expectDbError(createProject(workspace.id, 'SB'), /Unique constraint/);
+      await expectDbError(
+        createProject(workspace.id, 'SB'),
+        /Unique constraint/,
+      );
     });
 
     it('allows the same key in different workspaces', async () => {
@@ -108,8 +111,14 @@ describe('Database schema', () => {
     it('rejects keys that are not 2-10 uppercase letters or digits', async () => {
       const workspace = await createWorkspace();
 
-      await expectDbError(createProject(workspace.id, 'sb'), /projects_key_format/);
-      await expectDbError(createProject(workspace.id, '1AB'), /projects_key_format/);
+      await expectDbError(
+        createProject(workspace.id, 'sb'),
+        /projects_key_format/,
+      );
+      await expectDbError(
+        createProject(workspace.id, '1AB'),
+        /projects_key_format/,
+      );
     });
 
     it('rejects a project whose workspace does not exist', async () => {
@@ -156,7 +165,10 @@ describe('Database schema', () => {
       const workspace = await createWorkspace();
       const project = await createProject(workspace.id);
 
-      await expectDbError(createTicket(project.id, 0), /tickets_number_positive/);
+      await expectDbError(
+        createTicket(project.id, 0),
+        /tickets_number_positive/,
+      );
     });
   });
 
