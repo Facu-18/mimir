@@ -19,7 +19,8 @@ describe('Test database isolation', () => {
 describe('resolveTestDatabaseUrl', () => {
   const original = process.env.TEST_DATABASE_URL;
   afterEach(() => {
-    process.env.TEST_DATABASE_URL = original;
+    if (original === undefined) delete process.env.TEST_DATABASE_URL;
+    else process.env.TEST_DATABASE_URL = original;
   });
 
   it('refuses a database whose name does not end in _test', async () => {
