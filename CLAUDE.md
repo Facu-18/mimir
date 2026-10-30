@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-Early implementation: only the backend skeleton exists (`apps/api` — NestJS 12 + Prisma 7 + PostgreSQL in Docker, with a `/api/v1/health` endpoint and a `workspaces` table). The source of truth for everything else is `mimir-plan-maestro.md` (written in Spanish) — product plan, data model, REST API, and the 21-ticket MVP backlog. Read the relevant sections before working on any ticket.
+Early implementation: only the backend exists (`apps/api` — NestJS 12 + Prisma 7 + PostgreSQL in Docker) with the full MVP data model (CORE-002), a default-workspace bootstrap and `/api/v1/health`; no feature endpoints yet. Feature work is tracked in `odd/tasks/<feature>.md` (specs, assumptions, task evidence). The source of truth for everything else is `mimir-plan-maestro.md` (written in Spanish) — product plan, data model, REST API, and the 21-ticket MVP backlog. Read the relevant sections before working on any ticket.
 
 ## Commands
 
@@ -17,7 +17,7 @@ Root (pnpm 12 workspace, Node >= 24):
 Inside `apps/api` (copy `.env.example` to `.env` first):
 
 - `pnpm test` — unit tests (Vitest, `src/**/*.spec.ts`). Single file: `pnpm vitest run src/health/health.controller.spec.ts`; single test: add `-t "<name>"`.
-- `pnpm test:e2e` — e2e tests (`test/**/*.e2e-spec.ts`), hit the real Docker database.
+- `pnpm test:e2e` — e2e and integration tests (`test/**/*.e2e-spec.ts`, `test/**/*.int-spec.ts`). A global setup drops, recreates and migrates `TEST_DATABASE_URL` (default `mimir_test`) and refuses any DB not ending in `_test`; files run serially. Call `resetDatabase(prisma)` from `test/support/reset-database.ts` in `beforeEach`.
 - `pnpm lint` — oxlint (type-aware). Typecheck: `pnpm exec tsc --noEmit`.
 - `pnpm db:migrate --name <name>` — create/apply a migration; `pnpm db:deploy` applies pending ones; `pnpm exec prisma generate` regenerates the client.
 
@@ -26,7 +26,10 @@ Inside `apps/api` (copy `.env.example` to `.env` first):
 - ESM project (`"type": "module"`, `nodenext`): relative imports must end in `.js`.
 - Prisma 7: DB URL lives in `prisma.config.ts` (not the schema); the client is generated into `src/generated/prisma` (git-ignored, regenerated on install/build) and connects through `@prisma/adapter-pg`. `PrismaModule` is global; inject `PrismaService`.
 - Global prefix and app setup live in `src/configure-app.ts` — e2e tests must call `configureApp(app)` so routes match production.
-- Models use `@map`/`@@map` to snake_case tables/columns, UUID ids (`@db.Uuid`), and `Timestamptz` timestamps.
+- Models use `@map`/`@@map` to snake_case tables/columns, UUID ids (`@db.Uuid`), and `Timestamptz` timestamps; deletes are logical (`archivedAt`).
+- Rules Prisma cannot express (key format, positive numbers, no self-references) are CHECK constraints appended by hand to the migration SQL: create migrations with `prisma migrate dev --create-only`, edit, then apply. After any schema change, `pnpm exec prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` must print an empty migration. Partial unique indexes use the `partialIndexes` preview (`@@unique([...], where: raw("..."))`).
+- Never edit an applied migration: Prisma checksums them. `.gitattributes` forces LF for that reason.
+- Database connectivity failures must not crash the API: `DatabaseUnavailableFilter` (global, in `PrismaModule`) maps them to `503 Database unavailable` via `isDatabaseUnavailableError`; other Prisma errors keep Nest's default handling. The default workspace (`DEFAULT_WORKSPACE_ID`) is upserted on bootstrap and lazily by `WorkspacesService.getDefault()`.
 - pnpm 12 blocks dependency build scripts; allowed ones are listed under `allowBuilds` in `pnpm-workspace.yaml`. `prisma@latest` currently resolves to an 8.x RC — keep `prisma` and `@prisma/client` pinned to the same stable version.
 
 ## What Mimir is
