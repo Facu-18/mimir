@@ -185,6 +185,40 @@ describe('Ticket dependencies (e2e)', () => {
     await expect(prisma.ticketDependency.count()).resolves.toBe(2);
   });
 
+  it('checks cycles in linear time on dense layered graphs', async () => {
+    // Two tickets per layer, each depending on both tickets of the next
+    // layer: 2^LAYERS distinct paths but only 2*LAYERS tickets.
+    const LAYERS = 20;
+    const layers: TicketBody[][] = [];
+    for (let i = 0; i < LAYERS; i++) {
+      layers.push([await createTicket(`L${i}a`), await createTicket(`L${i}b`)]);
+    }
+    await prisma.ticketDependency.createMany({
+      data: layers.slice(0, -1).flatMap((layer, i) =>
+        layer.flatMap((ticket) =>
+          layers[i + 1].map((next) => ({
+            ticketId: ticket.id,
+            dependsOnTicketId: next.id,
+          })),
+        ),
+      ),
+    });
+    const top = layers[0][0];
+    const bottom = layers[LAYERS - 1][0];
+    const fresh = await createTicket('Fresh');
+
+    const started = Date.now();
+    await setDeps(bottom.id, [fresh.id]).expect(200);
+    const cycle = await setDeps(fresh.id, [top.id]).expect(409);
+    const elapsed = Date.now() - started;
+
+    expect(cycle.body.message).toMatch(
+      /^Dependency would create a cycle: SB-041 → SB-001 → .* → SB-039 → SB-041$/,
+    );
+    expect(cycle.body.message.split(' → ')).toHaveLength(LAYERS + 2);
+    expect(elapsed).toBeLessThan(1500);
+  });
+
   it('allows diamonds, which are not cycles', async () => {
     const top = await createTicket('Top');
     const left = await createTicket('Left');

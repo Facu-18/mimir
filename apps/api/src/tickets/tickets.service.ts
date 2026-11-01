@@ -434,22 +434,23 @@ export class TicketsService {
     added: string[],
   ): Promise<void> {
     if (added.length === 0) return;
-    const [hit] = await tx.$queryRaw<{ path: string[] }[]>`
-      WITH RECURSIVE walk(node, path) AS (
-        SELECT t, ARRAY[t] FROM unnest(${added}::uuid[]) AS t
-        UNION ALL
-        SELECT d.depends_on_ticket_id, w.path || d.depends_on_ticket_id
+    // UNION (not UNION ALL) visits each ticket once, so the check is linear
+    // in the size of the graph instead of in the number of paths.
+    const [reach] = await tx.$queryRaw<{ found: boolean }[]>`
+      WITH RECURSIVE reach(node) AS (
+        SELECT unnest(${added}::uuid[])
+        UNION
+        SELECT d.depends_on_ticket_id
         FROM ticket_dependencies d
-        JOIN walk w ON d.ticket_id = w.node
-        WHERE w.node <> ${ticket.id}::uuid
-          AND NOT d.depends_on_ticket_id = ANY(w.path)
+        JOIN reach r ON d.ticket_id = r.node
       )
-      SELECT path::text[] AS path FROM walk
-      WHERE node = ${ticket.id}::uuid
-      ORDER BY array_length(path, 1)
-      LIMIT 1`;
-    if (!hit) return;
-    const ids = [ticket.id, ...hit.path];
+      SELECT EXISTS (SELECT 1 FROM reach WHERE node = ${ticket.id}::uuid) AS found`;
+    if (!reach?.found) return;
+
+    const ids = [
+      ticket.id,
+      ...(await this.shortestDependencyPath(tx, ticket, added)),
+    ];
     const rows = await tx.ticket.findMany({
       where: { id: { in: ids } },
       select: { id: true, number: true },
@@ -461,6 +462,47 @@ export class TicketsService {
       )
       .join(' → ');
     throw new ConflictException(`Dependency would create a cycle: ${path}`);
+  }
+
+  /**
+   * Breadth-first search over the project's dependency edges from the added
+   * targets back to the ticket; returns the shortest path ending at it.
+   * Only called once a cycle is known to exist.
+   */
+  private async shortestDependencyPath(
+    tx: Tx,
+    ticket: TicketWithProjectKey,
+    added: string[],
+  ): Promise<string[]> {
+    const edges = await tx.ticketDependency.findMany({
+      where: { ticket: { projectId: ticket.projectId } },
+      select: { ticketId: true, dependsOnTicketId: true },
+    });
+    const next = new Map<string, string[]>();
+    for (const edge of edges) {
+      const targets = next.get(edge.ticketId) ?? [];
+      targets.push(edge.dependsOnTicketId);
+      next.set(edge.ticketId, targets);
+    }
+    const previous = new Map<string, string | null>(
+      added.map((start) => [start, null]),
+    );
+    const queue = [...added];
+    for (let i = 0; i < queue.length; i++) {
+      const node = queue[i];
+      if (node === ticket.id) break;
+      for (const target of next.get(node) ?? []) {
+        if (previous.has(target)) continue;
+        previous.set(target, node);
+        queue.push(target);
+      }
+    }
+    const path: string[] = [];
+    for (let node: string | null | undefined = ticket.id; node;) {
+      path.unshift(node);
+      node = previous.get(node);
+    }
+    return path;
   }
 
   private async assertAssignableParent(
