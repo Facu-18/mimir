@@ -8,7 +8,9 @@ const schema = z.strictObject({
 
 describe('ZodValidationPipe', () => {
   it('returns the parsed value', () => {
-    expect(new ZodValidationPipe(schema).transform({ name: ' Mimir ' })).toEqual({
+    expect(
+      new ZodValidationPipe(schema).transform({ name: ' Mimir ' }),
+    ).toEqual({
       name: 'Mimir',
     });
   });
