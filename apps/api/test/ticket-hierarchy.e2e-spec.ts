@@ -167,7 +167,9 @@ describe('Ticket hierarchy (e2e)', () => {
       setParent(b.id, a.id),
     ]);
 
-    expect([first.status, second.status].sort()).toEqual([200, 409]);
+    expect([first.status, second.status].sort((x, y) => x - y)).toEqual([
+      200, 409,
+    ]);
     const rows = await prisma.ticket.findMany({
       where: { id: { in: [a.id, b.id] } },
       select: { parentId: true },

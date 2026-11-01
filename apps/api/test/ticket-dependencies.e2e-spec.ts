@@ -9,6 +9,7 @@ import { WorkspacesService } from '../src/workspaces/workspaces.service.js';
 import { resetDatabase } from './support/reset-database.js';
 
 const UNKNOWN_ID = '00000000-0000-4000-8000-0000000000ff';
+const byText = (a: string, b: string) => a.localeCompare(b);
 
 type TicketBody = { id: string; code: string; [key: string]: unknown };
 
@@ -74,8 +75,8 @@ describe('Ticket dependencies (e2e)', () => {
     const response = await setDeps(ticket.id, [blocker.id, other.id]).expect(
       200,
     );
-    expect([...response.body.dependsOnTicketIds].sort()).toEqual(
-      [blocker.id, other.id].sort(),
+    expect([...response.body.dependsOnTicketIds].sort(byText)).toEqual(
+      [blocker.id, other.id].sort(byText),
     );
     expect(response.body.isBlocked).toBe(true);
 

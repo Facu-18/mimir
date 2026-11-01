@@ -154,6 +154,9 @@ export class TicketsService {
   ): Promise<TicketWithProjectKey> {
     return this.prisma.$transaction(async (tx) => {
       const current = await this.lockAndFind(tx, id);
+      // KEY SHARE keeps the labels from being deleted until this transaction
+      // ends, so a concurrent DELETE either happens first (404) or waits.
+      await tx.$queryRaw`SELECT id FROM labels WHERE id = ANY(${labelIds}::uuid[]) FOR KEY SHARE`;
       const labels = await tx.label.findMany({
         where: { id: { in: labelIds } },
       });

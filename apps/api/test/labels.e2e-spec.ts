@@ -9,6 +9,7 @@ import { WorkspacesService } from '../src/workspaces/workspaces.service.js';
 import { resetDatabase } from './support/reset-database.js';
 
 const UNKNOWN_ID = '00000000-0000-4000-8000-0000000000ff';
+const byText = (a: string, b: string) => a.localeCompare(b);
 
 type LabelBody = { id: string; name: string; projectId: string | null };
 
@@ -144,7 +145,9 @@ describe('Labels (e2e)', () => {
       const ticket = await createTicket();
 
       const first = await setLabels(ticket.id, [bug.id, ui.id]).expect(200);
-      expect([...first.body.labelIds].sort()).toEqual([bug.id, ui.id].sort());
+      expect([...first.body.labelIds].sort(byText)).toEqual(
+        [bug.id, ui.id].sort(byText),
+      );
 
       const second = await setLabels(ticket.id, [ui.id]).expect(200);
       expect(second.body.labelIds).toEqual([ui.id]);
@@ -187,6 +190,24 @@ describe('Labels (e2e)', () => {
         .send({})
         .expect(400);
 
+      await expect(prisma.ticketLabel.count()).resolves.toBe(0);
+    });
+
+    it('never fails with 500 when a label is deleted while being set', async () => {
+      const ticket = await createTicket();
+      const statuses: number[] = [];
+
+      for (let round = 0; round < 25; round++) {
+        const label = await createLabel({ name: `race-${round}`, projectId });
+        const [set, removed] = await Promise.all([
+          setLabels(ticket.id, [label.id]),
+          api().delete(`/api/v1/labels/${label.id}`),
+        ]);
+        expect(removed.status).toBe(204);
+        statuses.push(set.status);
+      }
+
+      expect(statuses.filter((s) => s !== 200 && s !== 404)).toEqual([]);
       await expect(prisma.ticketLabel.count()).resolves.toBe(0);
     });
 
