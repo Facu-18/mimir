@@ -19,6 +19,9 @@ function attr<T>(
 /** Plain text for search: blocks on their own lines, inline text joined. */
 export function toPlainText(root: DocumentNode): string {
   return plain(root)
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .join('\n')
     .replace(/\n{3,}/g, '\n\n')
     .trim();
 }
