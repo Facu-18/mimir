@@ -131,6 +131,47 @@ export class TicketsService {
     });
   }
 
+  /** Replaces the ticket's labels with exactly `labelIds`. */
+  async setLabels(
+    id: string,
+    labelIds: string[],
+  ): Promise<TicketWithProjectKey> {
+    return this.prisma.$transaction(async (tx) => {
+      const current = await this.lockAndFind(tx, id);
+      const labels = await tx.label.findMany({
+        where: { id: { in: labelIds } },
+      });
+      if (labels.length !== labelIds.length) {
+        throw new NotFoundException('Label not found');
+      }
+      if (
+        labels.some(
+          (l) => l.projectId !== null && l.projectId !== current.projectId,
+        )
+      ) {
+        throw new BadRequestException(
+          'Label must belong to the same project or be global',
+        );
+      }
+      const existing = current.labels.map((link) => link.labelId);
+      const added = labelIds.filter((labelId) => !existing.includes(labelId));
+      const removed = existing.filter((labelId) => !labelIds.includes(labelId));
+      if (added.length === 0 && removed.length === 0) return current;
+
+      await tx.ticketLabel.deleteMany({
+        where: { ticketId: id, labelId: { in: removed } },
+      });
+      await tx.ticketLabel.createMany({
+        data: added.map((labelId) => ({ ticketId: id, labelId })),
+      });
+      await this.recordEvent(tx, id, 'ticket.labels_changed', {
+        added,
+        removed,
+      });
+      return this.findByIdOrThrow(tx, id);
+    });
+  }
+
   archive(id: string): Promise<TicketWithProjectKey> {
     return this.setArchived(id, true);
   }
@@ -202,6 +243,7 @@ export class TicketsService {
       type: query.type ? { in: query.type } : undefined,
       priority: query.priority ? { in: query.priority } : undefined,
       epicId: query.epicId,
+      labels: query.labelId ? { some: { labelId: query.labelId } } : undefined,
     };
     if (query.archived === 'exclude') where.archivedAt = null;
     if (query.archived === 'only') where.archivedAt = { not: null };

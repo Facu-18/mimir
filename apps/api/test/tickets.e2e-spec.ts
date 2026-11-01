@@ -83,6 +83,7 @@ describe('Tickets (e2e)', () => {
         priority: 'none',
         parentId: null,
         epicId: null,
+        labelIds: [],
         sortOrder: 1,
         dueAt: null,
         completedAt: null,

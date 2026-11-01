@@ -1,10 +1,19 @@
 import { formatTicketCode, type Ticket as TicketDto } from '@mimir/contracts';
 import type { Ticket } from '../generated/prisma/client.js';
 
-export type TicketWithProjectKey = Ticket & { project: { key: string } };
+export type TicketWithProjectKey = Ticket & {
+  project: { key: string };
+  labels: { labelId: string }[];
+};
 
-/** Every ticket query must include the project key so the code can be built. */
-export const TICKET_INCLUDE = { project: { select: { key: true } } } as const;
+/**
+ * Every ticket query must include these relations: the project key builds
+ * the code and the label links fill `labelIds`.
+ */
+export const TICKET_INCLUDE = {
+  project: { select: { key: true } },
+  labels: { select: { labelId: true } },
+} as const;
 
 export function toTicketDto(ticket: TicketWithProjectKey): TicketDto {
   return {
@@ -20,6 +29,7 @@ export function toTicketDto(ticket: TicketWithProjectKey): TicketDto {
     priority: ticket.priority,
     parentId: ticket.parentId,
     epicId: ticket.epicId,
+    labelIds: ticket.labels.map((link) => link.labelId).sort(),
     sortOrder: ticket.sortOrder,
     dueAt: ticket.dueAt?.toISOString() ?? null,
     completedAt: ticket.completedAt?.toISOString() ?? null,
