@@ -61,7 +61,14 @@ export class TicketsService {
     id: string,
     input: UpdateTicketInput,
   ): Promise<TicketWithProjectKey> {
+    if (input.parentId === id) {
+      throw new BadRequestException('A ticket cannot be its own parent');
+    }
     return this.prisma.$transaction(async (tx) => {
+      // Graph writes take the project graph lock before any row lock.
+      if (input.parentId !== undefined) {
+        await this.lockGraph(tx, await this.projectIdOf(tx, id));
+      }
       const current = await this.lockAndFind(tx, id);
       const data: Prisma.TicketUncheckedUpdateInput = {};
       const changes: Record<string, Prisma.InputJsonObject> = {};
@@ -107,6 +114,14 @@ export class TicketsService {
         }
         data.epicId = input.epicId;
         changes.epicId = { from: current.epicId, to: input.epicId };
+      }
+
+      if (input.parentId !== undefined && input.parentId !== current.parentId) {
+        if (input.parentId !== null) {
+          await this.assertAssignableParent(tx, current, input.parentId);
+        }
+        data.parentId = input.parentId;
+        changes.parentId = { from: current.parentId, to: input.parentId };
       }
 
       if (data.status !== undefined) {
@@ -243,6 +258,7 @@ export class TicketsService {
       type: query.type ? { in: query.type } : undefined,
       priority: query.priority ? { in: query.priority } : undefined,
       epicId: query.epicId,
+      parentId: query.parentId === 'none' ? null : query.parentId,
       labels: query.labelId ? { some: { labelId: query.labelId } } : undefined,
     };
     if (query.archived === 'exclude') where.archivedAt = null;
@@ -331,8 +347,56 @@ export class TicketsService {
    * and never record the same change twice.
    */
   private async lockAndFind(tx: Tx, id: string): Promise<TicketWithProjectKey> {
-    await tx.$queryRaw`SELECT id FROM tickets WHERE id = ${id}::uuid FOR UPDATE`;
+    // NO KEY UPDATE still serializes writers of this row but, unlike FOR
+    // UPDATE, does not block foreign-key checks from rows that reference it.
+    await tx.$queryRaw`SELECT id FROM tickets WHERE id = ${id}::uuid FOR NO KEY UPDATE`;
     return this.findByIdOrThrow(tx, id);
+  }
+
+  private async projectIdOf(tx: Tx, id: string): Promise<string> {
+    const ticket = await tx.ticket.findUnique({
+      where: { id },
+      select: { projectId: true },
+    });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    return ticket.projectId;
+  }
+
+  /**
+   * Serializes parent/dependency writes within a project for the rest of the
+   * transaction, so two concurrent writes cannot jointly close a cycle.
+   * Lock order: graph lock first, then row locks.
+   */
+  private async lockGraph(tx: Tx, projectId: string): Promise<void> {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`ticket-graph:${projectId}`}, 0))`;
+  }
+
+  private async assertAssignableParent(
+    tx: Tx,
+    ticket: TicketWithProjectKey,
+    parentId: string,
+  ): Promise<void> {
+    const parent = await tx.ticket.findUnique({ where: { id: parentId } });
+    if (!parent) throw new NotFoundException('Parent ticket not found');
+    if (parent.projectId !== ticket.projectId) {
+      throw new BadRequestException('Parent must belong to the same project');
+    }
+    if (parent.archivedAt) {
+      throw new ConflictException('Cannot link to an archived ticket');
+    }
+    // Walk up from the new parent; reaching the ticket means it would become
+    // its own ancestor.
+    const [cycle] = await tx.$queryRaw<{ found: boolean }[]>`
+      WITH RECURSIVE ancestors AS (
+        SELECT id, parent_id FROM tickets WHERE id = ${parentId}::uuid
+        UNION
+        SELECT t.id, t.parent_id FROM tickets t
+        JOIN ancestors a ON t.id = a.parent_id
+      )
+      SELECT EXISTS (SELECT 1 FROM ancestors WHERE id = ${ticket.id}::uuid) AS found`;
+    if (cycle?.found) {
+      throw new ConflictException('Parent would create a cycle');
+    }
   }
 
   private async findByIdOrThrow(

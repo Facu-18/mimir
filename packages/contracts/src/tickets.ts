@@ -73,6 +73,7 @@ export const updateTicketSchema = z
     priority: ticketPrioritySchema.optional(),
     dueAt: dueAtSchema.optional(),
     epicId: z.uuid({ error: 'Epic id must be a UUID' }).nullable().optional(),
+    parentId: z.uuid({ error: 'Parent id must be a UUID' }).nullable().optional(),
   })
   .refine((input) => Object.keys(input).length > 0, {
     error: 'At least one field must be provided',
@@ -111,6 +112,12 @@ export const listTicketsQuerySchema = z.strictObject({
   priority: csvEnumList(TICKET_PRIORITIES).optional(),
   epicId: z.uuid({ error: 'Epic id must be a UUID' }).optional(),
   labelId: z.uuid({ error: 'Label id must be a UUID' }).optional(),
+  /** A parent ticket id, or `none` for top-level tickets only. */
+  parentId: z
+    .union([z.literal('none'), z.uuid()], {
+      error: 'Parent id must be a UUID or "none"',
+    })
+    .optional(),
   archived: z.enum(['exclude', 'include', 'only']).default('exclude'),
   sort: z.enum(TICKET_SORT_FIELDS).default('position'),
   order: z.enum(['asc', 'desc']).default('asc'),
