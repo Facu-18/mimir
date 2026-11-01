@@ -2,18 +2,22 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   Query,
 } from '@nestjs/common';
 import {
   createTicketSchema,
   listTicketsQuerySchema,
+  updateTicketSchema,
   type CreateTicketInput,
   type ListTicketsQuery,
   type Ticket,
   type TicketList,
+  type UpdateTicketInput,
 } from '@mimir/contracts';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { toTicketDto } from './ticket.mapper.js';
@@ -49,5 +53,30 @@ export class TicketsController {
   @Get(':ref')
   async findOne(@Param('ref') ref: string): Promise<Ticket> {
     return toTicketDto(await this.tickets.findByRef(ref));
+  }
+
+  @Patch(':id')
+  async update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(updateTicketSchema)) input: UpdateTicketInput,
+  ): Promise<Ticket> {
+    return toTicketDto(await this.tickets.update(id, input));
+  }
+
+  @Post(':id/archive')
+  @HttpCode(200)
+  async archive(@Param('id', ParseUUIDPipe) id: string): Promise<Ticket> {
+    return toTicketDto(await this.tickets.archive(id));
+  }
+
+  @Post(':id/restore')
+  @HttpCode(200)
+  async restore(@Param('id', ParseUUIDPipe) id: string): Promise<Ticket> {
+    return toTicketDto(await this.tickets.restore(id));
+  }
+
+  @Post(':id/duplicate')
+  async duplicate(@Param('id', ParseUUIDPipe) id: string): Promise<Ticket> {
+    return toTicketDto(await this.tickets.duplicate(id));
   }
 }
