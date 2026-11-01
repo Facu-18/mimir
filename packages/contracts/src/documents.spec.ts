@@ -58,6 +58,47 @@ describe('documentContentSchema', () => {
     ]);
   });
 
+  it.each([
+    'https://a.example\n\n<script>alert(1)</script>',
+    'https://a.example\n\n<javascript:alert%281%29>',
+    'https://a.example/a b',
+    'https://a.example/<x>',
+    'https://a.example/"x',
+    'https://a.example/`x',
+    '/\\evil.example',
+  ])('rejects the link %j because of characters inside the URL', (href) => {
+    const result = documentContentSchema.safeParse(doc(paragraph(text('x', [link(href)]))));
+
+    expect(result.success).toBe(false);
+  });
+
+  it('rejects an image src with a newline inside', () => {
+    expect(
+      documentContentSchema.safeParse(doc(image('https://a.example/i.png\n<script>'))).success,
+    ).toBe(false);
+  });
+
+  it.each([
+    [{ type: 'image', attrs: { src: '/i.png', alt: 123 } }, 'Image alt must be a string'],
+    [{ type: 'image', attrs: { src: '/i.png', title: 42 } }, 'Image title must be a string'],
+    [{ type: 'heading', attrs: { level: { toString: 1 } } }, 'Heading level must be 1-6'],
+    [{ type: 'heading', attrs: { level: 7 } }, 'Heading level must be 1-6'],
+    [{ type: 'orderedList', attrs: { start: '3' } }, 'List start must be a positive integer'],
+    [{ type: 'taskItem', attrs: { checked: 'yes' } }, 'Task checked must be a boolean'],
+    [{ type: 'codeBlock', attrs: { language: ['ts'] } }, 'Code language must be a string'],
+  ])('rejects mistyped attributes in %j', (node, message) => {
+    expect(messages(documentContentSchema.safeParse(doc(node)))).toEqual([message]);
+  });
+
+  it('accepts null optional attributes as Tiptap sends them', () => {
+    const content = doc(
+      { type: 'image', attrs: { src: '/i.png', alt: null, title: null } },
+      { type: 'codeBlock', attrs: { language: null } },
+    );
+
+    expect(documentContentSchema.safeParse(content).success).toBe(true);
+  });
+
   it('rejects documents nested deeper than 64 levels', () => {
     let node: Record<string, unknown> = text('deep');
     for (let i = 0; i < 70; i++) node = { type: 'blockquote', content: [node] };

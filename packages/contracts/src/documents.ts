@@ -36,12 +36,55 @@ const nodeSchema: z.ZodType<DocumentNode> = z.lazy(() =>
 const RELATIVE_URL = /^(\/(?!\/)|#)/;
 const LINK_URL = /^(https?:|mailto:)/i;
 const IMAGE_URL = /^https?:/i;
+// Whitespace, control characters and Markdown/HTML delimiters are never
+// valid unencoded in a URL; allowing them lets a URL break out of the
+// exported Markdown (e.g. a newline followed by raw HTML).
+const UNSAFE_URL_CHARS = /[\x00-\x20\x7f<>"`\\]/;
 
 function isSafeUrl(value: unknown, allowed: RegExp): boolean {
-  if (typeof value !== 'string') return false;
-  const url = value.trim();
-  return allowed.test(url) || RELATIVE_URL.test(url);
+  if (typeof value !== 'string' || UNSAFE_URL_CHARS.test(value)) return false;
+  return allowed.test(value) || RELATIVE_URL.test(value);
 }
+
+type AttrRule = {
+  node: string;
+  key: string;
+  valid: (value: unknown) => boolean;
+  message: string;
+};
+
+const isOptionalString = (value: unknown) =>
+  value === undefined || value === null || typeof value === 'string';
+
+/** Attributes the Markdown export reads must have the type it expects. */
+const ATTR_RULES: AttrRule[] = [
+  { node: 'image', key: 'alt', valid: isOptionalString, message: 'Image alt must be a string' },
+  { node: 'image', key: 'title', valid: isOptionalString, message: 'Image title must be a string' },
+  {
+    node: 'heading',
+    key: 'level',
+    valid: (v) => v === undefined || (Number.isInteger(v) && (v as number) >= 1 && (v as number) <= 6),
+    message: 'Heading level must be 1-6',
+  },
+  {
+    node: 'orderedList',
+    key: 'start',
+    valid: (v) => v === undefined || v === null || (Number.isInteger(v) && (v as number) >= 1),
+    message: 'List start must be a positive integer',
+  },
+  {
+    node: 'taskItem',
+    key: 'checked',
+    valid: (v) => v === undefined || typeof v === 'boolean',
+    message: 'Task checked must be a boolean',
+  },
+  {
+    node: 'codeBlock',
+    key: 'language',
+    valid: isOptionalString,
+    message: 'Code language must be a string',
+  },
+];
 
 /** Depth check done iteratively so hostile nesting cannot overflow the stack. */
 function depthOf(root: unknown): number {
@@ -91,6 +134,11 @@ export const documentContentSchema = z
           code: 'custom',
           message: 'Images must use http or https, or be relative',
         });
+      }
+      for (const rule of ATTR_RULES) {
+        if (node.type === rule.node && !rule.valid(node.attrs?.[rule.key])) {
+          ctx.addIssue({ code: 'custom', message: rule.message });
+        }
       }
     }
   });

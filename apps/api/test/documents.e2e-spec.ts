@@ -126,6 +126,44 @@ describe('Documents (e2e)', () => {
       expect(reopened.body.projectId).toBe(projectId);
     });
 
+    it('rejects URLs with line breaks and mistyped attributes, so export cannot be broken', async () => {
+      await api()
+        .post('/api/v1/documents')
+        .send({
+          contentJson: doc(
+            paragraph('click', [
+              {
+                type: 'link',
+                attrs: {
+                  href: 'https://a.example\n\n<script>alert(1)</script>',
+                },
+              },
+            ]),
+          ),
+        })
+        .expect(400);
+      await api()
+        .post('/api/v1/documents')
+        .send({
+          contentJson: doc({
+            type: 'image',
+            attrs: { src: 'https://ok/i.png', alt: 123 },
+          }),
+        })
+        .expect(400);
+      await api()
+        .post('/api/v1/documents')
+        .send({
+          contentJson: doc({
+            type: 'heading',
+            attrs: { level: { toString: 1 } },
+          }),
+        })
+        .expect(400);
+
+      await expect(prisma.document.count()).resolves.toBe(0);
+    });
+
     it('rejects unsafe links, client search text and malformed content', async () => {
       const unsafe = await api()
         .post('/api/v1/documents')

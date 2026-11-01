@@ -141,6 +141,44 @@ describe('toMarkdown', () => {
     );
   });
 
+  it('keeps URLs and image titles from breaking out of their Markdown syntax', () => {
+    const content = doc(
+      p(
+        t('x', {
+          type: 'link',
+          attrs: { href: 'https://a.example\n\n<script>"`\\' },
+        }),
+      ),
+      {
+        type: 'image',
+        attrs: { src: '/i.png', alt: 'a\nb', title: 'x\n\n<script>"trail\\' },
+      },
+    );
+
+    expect(toMarkdown(content)).toBe(
+      '[x](https://a.example%0A%0A%3Cscript%3E%22%60%5C)\n\n' +
+        '![a b](/i.png "x  <script>\\"trail\\\\")\n',
+    );
+  });
+
+  it('never throws on mistyped attributes that bypass validation', () => {
+    const content = doc(
+      { type: 'heading', attrs: { level: { toString: 1 } }, content: [t('H')] },
+      { type: 'image', attrs: { src: 42, alt: { length: 1 }, title: 7 } },
+      {
+        type: 'orderedList',
+        attrs: { start: 'x' },
+        content: [li(p(t('one')))],
+      },
+      { type: 'codeBlock', attrs: { language: ['ts'] }, content: [t('code')] },
+    );
+
+    expect(toMarkdown(content)).toBe(
+      '# H\n\n![]()\n\n1. one\n\n```\ncode\n```\n',
+    );
+    expect(() => toPlainText(content)).not.toThrow();
+  });
+
   it('falls back to the text of unknown nodes', () => {
     expect(toMarkdown(doc({ type: 'callout', content: [p(t('Note'))] }))).toBe(
       'Note\n',

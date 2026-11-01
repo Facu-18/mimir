@@ -2,18 +2,27 @@ import type { DocumentMark, DocumentNode } from '@mimir/contracts';
 
 // Converters from Tiptap JSON to plain text (search) and Markdown (export).
 // Content depth is capped by the contract, so recursion here is bounded.
+// Attribute readers check types themselves: stored content must never be
+// able to crash an export, even if it predates a validation rule.
 
 const INLINE_TYPES = new Set(['text', 'hardBreak']);
+
+type WithAttrs = { attrs?: Record<string, unknown> };
 
 function isInlineList(nodes: DocumentNode[]): boolean {
   return nodes.every((node) => INLINE_TYPES.has(node.type));
 }
 
-function attr<T>(
-  node: { attrs?: Record<string, unknown> },
-  key: string,
-): T | undefined {
-  return node.attrs?.[key] as T | undefined;
+function stringAttr(node: WithAttrs, key: string): string | undefined {
+  const value = node.attrs?.[key];
+  return typeof value === 'string' ? value : undefined;
+}
+
+function intAttr(node: WithAttrs, key: string): number | undefined {
+  const value = node.attrs?.[key];
+  return typeof value === 'number' && Number.isInteger(value)
+    ? value
+    : undefined;
 }
 
 /** Plain text for search: blocks on their own lines, inline text joined. */
@@ -29,7 +38,7 @@ export function toPlainText(root: DocumentNode): string {
 function plain(node: DocumentNode): string {
   if (node.type === 'text') return node.text ?? '';
   if (node.type === 'hardBreak') return '\n';
-  if (node.type === 'image') return attr<string>(node, 'alt') ?? '';
+  if (node.type === 'image') return stringAttr(node, 'alt') ?? '';
   const children = node.content ?? [];
   const separator = isInlineList(children) ? '' : '\n';
   return children
@@ -54,14 +63,14 @@ function block(node: DocumentNode): string {
     case 'paragraph':
       return escapeBlockStart(inline(children));
     case 'heading': {
-      const level = Math.min(Math.max(Number(attr(node, 'level')) || 1, 1), 6);
+      const level = Math.min(Math.max(intAttr(node, 'level') ?? 1, 1), 6);
       const text = inline(children);
       return text.length > 0 ? `${'#'.repeat(level)} ${text}` : '';
     }
     case 'bulletList':
       return children.map((item) => listItem(item, '- ')).join('\n');
     case 'orderedList': {
-      const start = Number(attr(node, 'start')) || 1;
+      const start = Math.max(intAttr(node, 'start') ?? 1, 1);
       return children
         .map((item, index) => listItem(item, `${start + index}. `))
         .join('\n');
@@ -69,7 +78,7 @@ function block(node: DocumentNode): string {
     case 'taskList':
       return children
         .map((item) =>
-          listItem(item, attr<boolean>(item, 'checked') ? '- [x] ' : '- [ ] '),
+          listItem(item, item.attrs?.checked === true ? '- [x] ' : '- [ ] '),
         )
         .join('\n');
     case 'blockquote':
@@ -81,7 +90,7 @@ function block(node: DocumentNode): string {
     case 'codeBlock':
       return codeBlock(
         children.map(plain).join(''),
-        attr<string>(node, 'language'),
+        stringAttr(node, 'language'),
       );
     case 'horizontalRule':
       return '---';
@@ -113,18 +122,17 @@ function codeBlock(code: string, language: string | undefined): string {
     ...(code.match(/`+/g) ?? []).map((run) => run.length),
   );
   const fence = '`'.repeat(Math.max(3, longestRun + 1));
-  const info =
-    typeof language === 'string' ? language.replace(/[`\s]/g, '') : '';
+  const info = language ? language.replace(/[`\s]/g, '') : '';
   return `${fence}${info}\n${code}\n${fence}`;
 }
 
 function image(node: DocumentNode): string {
-  const alt = escapeText(attr<string>(node, 'alt') ?? '');
-  const src = encodeUrl(attr<string>(node, 'src') ?? '');
-  const title = attr<string>(node, 'title');
-  return title
-    ? `![${alt}](${src} "${title.replace(/"/g, '\\"')}")`
-    : `![${alt}](${src})`;
+  const alt = escapeText(singleLine(stringAttr(node, 'alt') ?? ''));
+  const src = encodeUrl(stringAttr(node, 'src') ?? '');
+  const title = stringAttr(node, 'title');
+  if (!title) return `![${alt}](${src})`;
+  const quoted = singleLine(title).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return `![${alt}](${src} "${quoted}")`;
 }
 
 function inline(nodes: DocumentNode[]): string {
@@ -145,7 +153,7 @@ function markedText(text: string, marks: DocumentMark[]): string {
   if (has('italic')) out = `*${out}*`;
   if (has('strike')) out = `~~${out}~~`;
   const link = has('link');
-  if (link) out = `[${out}](${encodeUrl(attr<string>(link, 'href') ?? '')})`;
+  if (link) out = `[${out}](${encodeUrl(stringAttr(link, 'href') ?? '')})`;
   return out;
 }
 
@@ -163,16 +171,30 @@ function escapeText(text: string): string {
   return text.replace(/[\\`*_[\]<>~]/g, '\\$&');
 }
 
+/** Line breaks would end the surrounding Markdown construct. */
+function singleLine(text: string): string {
+  return text.replace(/[\r\n]/g, ' ');
+}
+
 /** Text that would otherwise start a heading, list or numbered list. */
 function escapeBlockStart(text: string): string {
   if (/^[#+-]/.test(text)) return `\\${text}`;
   return text.replace(/^(\d+)([.)])/, '$1\\$2');
 }
 
+/**
+ * Percent-encodes every character that could end a Markdown link
+ * destination or start HTML: whitespace, controls, quotes, backticks,
+ * backslashes, angle brackets and parentheses.
+ */
 function encodeUrl(url: string): string {
   return url
     .trim()
-    .replace(/ /g, '%20')
-    .replace(/\(/g, '%28')
-    .replace(/\)/g, '%29');
+    .replace(
+      // Control characters are matched on purpose: they must be encoded.
+      // oxlint-disable-next-line no-control-regex
+      /[\x00-\x20\x7f<>"`\\()]/g,
+      (char) =>
+        `%${char.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`,
+    );
 }
