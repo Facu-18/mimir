@@ -36,4 +36,4 @@ Risk: item 2 (security — untrusted rich content and export: URL schemes, body 
 ## Log
 
 - L1 (2026-11-01, user): "sigamos" — continuing after TSK-004; next backend ticket DOC-001.
-- L2 (2026-11-01): T1–T3 done. Checks: contracts 63/63; api unit 22/22, e2e 130/130, typecheck, oxlint (0 warnings), build; smoke export on built API. Notes: plain text trims trailing spaces per line; the global JSON body limit is now 2 MB for every endpoint (was Express default 100 kB). Tool gotcha: the Write tool turned `̀` escapes into literal combining characters — replaced with `p{Mark}`.
+- L2 (2026-11-01): T1–T3 done. Checks: contracts 63/63; api unit 22/22, e2e 130/130, typecheck, oxlint (0 warnings), build; smoke export on built API. Notes: plain text trims trailing spaces per line; the global JSON body limit is now 2 MB for every endpoint (was Express default 100 kB). Tool gotcha: the Write tool decodes JSON-style unicode escapes inside file content, so the accent-stripping regex was written with literal combining characters; it now uses the Unicode property escape for marks (Mark category) instead.
