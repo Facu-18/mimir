@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  formatTicketCode,
   parseTicketCode,
   type CreateTicketInput,
   type ListTicketsQuery,
@@ -180,6 +181,54 @@ export class TicketsService {
         data: added.map((labelId) => ({ ticketId: id, labelId })),
       });
       await this.recordEvent(tx, id, 'ticket.labels_changed', {
+        added,
+        removed,
+      });
+      return this.findByIdOrThrow(tx, id);
+    });
+  }
+
+  /** Replaces the tickets this one depends on, rejecting any cycle. */
+  async setDependencies(
+    id: string,
+    dependsOnTicketIds: string[],
+  ): Promise<TicketWithProjectKey> {
+    if (dependsOnTicketIds.includes(id)) {
+      throw new BadRequestException('A ticket cannot depend on itself');
+    }
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockGraph(tx, await this.projectIdOf(tx, id));
+      const current = await this.lockAndFind(tx, id);
+      const targets = await tx.ticket.findMany({
+        where: { id: { in: dependsOnTicketIds } },
+      });
+      if (targets.length !== dependsOnTicketIds.length) {
+        throw new NotFoundException('Dependency ticket not found');
+      }
+      if (targets.some((t) => t.projectId !== current.projectId)) {
+        throw new BadRequestException(
+          'Dependencies must belong to the same project',
+        );
+      }
+      const existing = current.dependencies.map((d) => d.dependsOnTicketId);
+      const added = dependsOnTicketIds.filter((t) => !existing.includes(t));
+      const removed = existing.filter((t) => !dependsOnTicketIds.includes(t));
+      if (added.length === 0 && removed.length === 0) return current;
+      if (targets.some((t) => added.includes(t.id) && t.archivedAt)) {
+        throw new ConflictException('Cannot link to an archived ticket');
+      }
+      await this.assertNoDependencyCycle(tx, current, added);
+
+      await tx.ticketDependency.deleteMany({
+        where: { ticketId: id, dependsOnTicketId: { in: removed } },
+      });
+      await tx.ticketDependency.createMany({
+        data: added.map((dependsOnTicketId) => ({
+          ticketId: id,
+          dependsOnTicketId,
+        })),
+      });
+      await this.recordEvent(tx, id, 'ticket.dependencies_changed', {
         added,
         removed,
       });
@@ -369,6 +418,46 @@ export class TicketsService {
    */
   private async lockGraph(tx: Tx, projectId: string): Promise<void> {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`ticket-graph:${projectId}`}, 0))`;
+  }
+
+  /**
+   * A new edge ticket → target closes a cycle when the ticket is already
+   * reachable from the target. Only the removed edges start at the ticket,
+   * so they can never be part of such a path and the current graph is used.
+   */
+  private async assertNoDependencyCycle(
+    tx: Tx,
+    ticket: TicketWithProjectKey,
+    added: string[],
+  ): Promise<void> {
+    if (added.length === 0) return;
+    const [hit] = await tx.$queryRaw<{ path: string[] }[]>`
+      WITH RECURSIVE walk(node, path) AS (
+        SELECT t, ARRAY[t] FROM unnest(${added}::uuid[]) AS t
+        UNION ALL
+        SELECT d.depends_on_ticket_id, w.path || d.depends_on_ticket_id
+        FROM ticket_dependencies d
+        JOIN walk w ON d.ticket_id = w.node
+        WHERE w.node <> ${ticket.id}::uuid
+          AND NOT d.depends_on_ticket_id = ANY(w.path)
+      )
+      SELECT path::text[] AS path FROM walk
+      WHERE node = ${ticket.id}::uuid
+      ORDER BY array_length(path, 1)
+      LIMIT 1`;
+    if (!hit) return;
+    const ids = [ticket.id, ...hit.path];
+    const rows = await tx.ticket.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, number: true },
+    });
+    const numberOf = new Map(rows.map((row) => [row.id, row.number]));
+    const path = ids
+      .map((stepId) =>
+        formatTicketCode(ticket.project.key, numberOf.get(stepId)!),
+      )
+      .join(' → ');
+    throw new ConflictException(`Dependency would create a cycle: ${path}`);
   }
 
   private async assertAssignableParent(

@@ -96,6 +96,13 @@ function csvEnumList<const T extends readonly [string, ...string[]]>(values: T) 
   });
 }
 
+export const setTicketDependenciesSchema = z.strictObject({
+  dependsOnTicketIds: z
+    .array(z.uuid({ error: 'Ticket id must be a UUID' }))
+    .max(100, { error: 'A ticket can have at most 100 dependencies' })
+    .transform((ids) => [...new Set(ids)]),
+});
+
 export const TICKET_SORT_FIELDS = [
   'position',
   'number',
@@ -137,6 +144,9 @@ export const ticketSchema = z.object({
   parentId: z.uuid().nullable(),
   epicId: z.uuid().nullable(),
   labelIds: z.array(z.uuid()),
+  dependsOnTicketIds: z.array(z.uuid()),
+  /** True while any dependency is neither done/canceled nor archived. */
+  isBlocked: z.boolean(),
   sortOrder: z.number(),
   dueAt: z.iso.datetime().nullable(),
   completedAt: z.iso.datetime().nullable(),
@@ -151,5 +161,6 @@ export type TicketPriority = z.infer<typeof ticketPrioritySchema>;
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;
 export type UpdateTicketInput = z.infer<typeof updateTicketSchema>;
 export type ListTicketsQuery = z.infer<typeof listTicketsQuerySchema>;
+export type SetTicketDependenciesInput = z.infer<typeof setTicketDependenciesSchema>;
 export type Ticket = z.infer<typeof ticketSchema>;
 export type TicketList = { items: Ticket[] };

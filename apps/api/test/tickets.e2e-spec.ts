@@ -84,6 +84,8 @@ describe('Tickets (e2e)', () => {
         parentId: null,
         epicId: null,
         labelIds: [],
+        dependsOnTicketIds: [],
+        isBlocked: false,
         sortOrder: 1,
         dueAt: null,
         completedAt: null,

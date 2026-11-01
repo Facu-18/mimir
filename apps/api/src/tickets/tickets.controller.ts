@@ -13,10 +13,12 @@ import {
 import {
   createTicketSchema,
   listTicketsQuerySchema,
+  setTicketDependenciesSchema,
   setTicketLabelsSchema,
   updateTicketSchema,
   type CreateTicketInput,
   type ListTicketsQuery,
+  type SetTicketDependenciesInput,
   type SetTicketLabelsInput,
   type Ticket,
   type TicketList,
@@ -73,6 +75,17 @@ export class TicketsController {
     input: SetTicketLabelsInput,
   ): Promise<Ticket> {
     return toTicketDto(await this.tickets.setLabels(id, input.labelIds));
+  }
+
+  @Put(':id/dependencies')
+  async setDependencies(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(setTicketDependenciesSchema))
+    input: SetTicketDependenciesInput,
+  ): Promise<Ticket> {
+    return toTicketDto(
+      await this.tickets.setDependencies(id, input.dependsOnTicketIds),
+    );
   }
 
   @Post(':id/archive')
