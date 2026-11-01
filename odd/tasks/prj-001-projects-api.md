@@ -25,8 +25,8 @@ Assumptions (decided here, not in the plan):
 
 | ID | Specs | Route | Status | Evidence |
 |---|---|---|---|---|
-| T1 | S6, S2 | inline | pending | `@mimir/contracts` project schemas + Zod validation pipe |
-| T2 | S1–S5 | inline | pending | projects module: create, get, list/filter, patch, archive, restore |
+| T1 | S6, S2 | inline | done | `@mimir/contracts` schemas (RED missing module → GREEN 15) + ZodValidationPipe (RED → GREEN) · `4f1202c` |
+| T2 | S1–S5 | inline | done | projects module; RED 17 failing → GREEN 45/45 e2e; curl smoke on build (201/409/archive/400) · `0f08c83` |
 
 Route evidence: T2 depends on T1, no parallel writer reason; inline.
 Risk: item 5 (new dependency `zod` and a new workspace package). Native review: unavailable (`gentle-ai` not executable).
@@ -34,3 +34,4 @@ Risk: item 5 (new dependency `zod` and a new workspace package). Native review: 
 ## Log
 
 - L1 (2026-11-01, user): "sigamos" — continuing after CORE-002; next backend ticket in plan order is PRJ-001.
+- L2 (2026-11-01): T1–T2 done. Checks: contracts 15/15 + tsc; api unit 14/14, e2e 45/45, tsc, oxlint, build green. Branch adds ~940 lines over feat/core-002-schema.
