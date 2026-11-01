@@ -26,9 +26,9 @@ Assumptions (decided here, not in the plan):
 
 | ID | Specs | Route | Status | Evidence |
 |---|---|---|---|---|
-| T1 | S1, S4 | inline | pending | content contract + `toPlainText` / `toMarkdown` converters |
-| T2 | S2–S5 | inline | pending | documents module: CRUD, list, link, conflicts, archive/restore, body limit |
-| T3 | S2, S3, S5 | inline | pending | Markdown export endpoint |
+| T1 | S1, S4 | inline | done | contract RED → GREEN 63; converters RED → GREEN 8 · `b03400c` |
+| T2 | S2–S5 | inline | done | RED 14 → GREEN; 413 above 2 MB; one of two concurrent same-base saves wins · `52fcc68` |
+| T3 | S2, S3, S5 | inline | done | RED 3 → GREEN; curl smoke on build (headers + body) · `e1f012b` |
 
 Route evidence: sequential units over one module; no parallel writer reason; inline.
 Risk: item 2 (security — untrusted rich content and export: URL schemes, body size). Native review: unavailable (`gentle-ai` not executable).
@@ -36,3 +36,4 @@ Risk: item 2 (security — untrusted rich content and export: URL schemes, body 
 ## Log
 
 - L1 (2026-11-01, user): "sigamos" — continuing after TSK-004; next backend ticket DOC-001.
+- L2 (2026-11-01): T1–T3 done. Checks: contracts 63/63; api unit 22/22, e2e 130/130, typecheck, oxlint (0 warnings), build; smoke export on built API. Notes: plain text trims trailing spaces per line; the global JSON body limit is now 2 MB for every endpoint (was Express default 100 kB). Tool gotcha: the Write tool turned `̀` escapes into literal combining characters — replaced with `p{Mark}`.
