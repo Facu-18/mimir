@@ -23,15 +23,15 @@ Assumptions (decided here, not in the plan):
 - A6: `GET /projects/:projectId/tickets` filters: `q` (literal case-insensitive match on title or exact code), `status` / `type` / `priority` (comma-separated lists), `archived=exclude|include|only` (default `exclude`), `sort=position|number|createdAt|updatedAt|dueAt|priority` (default `position`) and `order=asc|desc` (default `asc`). Response `{ "items": [...] }`.
 - A7: Duplicate copies title, description, type, priority and due date into a new ticket with a new number, status `backlog`, at the end of the column; it is not archived even if the source was.
 - A8: Added `POST /tickets/:id/restore` (not in §7) so archiving is reversible, mirroring projects. Archive/restore are idempotent.
-- A9: Activity events (same transaction): `ticket.created`, `ticket.updated` (payload `{ changes: { field: { from, to } } }`), `ticket.archived`, `ticket.restored`, `ticket.duplicated` (payload `{ sourceTicketId }`).
+- A9: Activity events (same transaction): `ticket.created`, `ticket.updated` (payload `{ changes: { field: { from, to } } }` for title/type/status/priority/dueAt; description edits are recorded as `description: { changed: true }`; no event when nothing actually changed), `ticket.archived`, `ticket.restored`, `ticket.duplicated` (payload `{ sourceTicketId }`).
 
 ## Tasks
 
 | ID | Specs | Route | Status | Evidence |
 |---|---|---|---|---|
-| T1 | S1, S4 | inline | pending | `@mimir/contracts` ticket schemas |
-| T2 | S2, S3, S5, S6 | inline | pending | create with atomic numbering, get by id/code, list filters |
-| T3 | S1, S5, S6 | inline | pending | patch rules, archive/restore, duplicate, activity events |
+| T1 | S1, S4 | inline | done | ticket schemas + code helpers; RED → GREEN 34 · `e63414c` |
+| T2 | S2, S3, S5, S6 | inline | done | RED 19 → GREEN; 20 parallel creates = numbers 1..20, stable 5/5 runs · `b44cfaf` |
+| T3 | S1, S5, S6 | inline | done | RED 10 → GREEN 79/79 e2e; curl smoke on build · `1341a38` |
 
 Route evidence: sequential units sharing the tickets module; no parallel writer reason; inline.
 Risk: item 4 (concurrency — numbering under concurrent creation). Native review: unavailable (`gentle-ai` not executable).
@@ -39,3 +39,4 @@ Risk: item 4 (concurrency — numbering under concurrent creation). Native revie
 ## Log
 
 - L1 (2026-11-01, user): "segui" — continuing after PRJ-001 API; next ticket TSK-001.
+- L2 (2026-11-01): T1–T3 done. Checks: contracts 34/34; api unit 14/14, e2e 79/79, tsc, oxlint, build. Smoke on built API: SMK-001 by code, PATCH done sets completedAt, duplicate → SMK-002. escapeLike extracted to src/common and reused by projects and tickets.
