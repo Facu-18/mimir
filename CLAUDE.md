@@ -18,7 +18,7 @@ Inside `apps/api` (copy `.env.example` to `.env` first):
 
 - `pnpm test` — unit tests (Vitest, `src/**/*.spec.ts`). Single file: `pnpm vitest run src/health/health.controller.spec.ts`; single test: add `-t "<name>"`.
 - `pnpm test:e2e` — e2e and integration tests (`test/**/*.e2e-spec.ts`, `test/**/*.int-spec.ts`). A global setup drops, recreates and migrates `TEST_DATABASE_URL` (default `mimir_test`) and refuses any DB not ending in `_test`; files run serially. Call `resetDatabase(prisma)` from `test/support/reset-database.ts` in `beforeEach`.
-- `pnpm lint` — oxlint (type-aware). Typecheck: `pnpm exec tsc --noEmit`.
+- `pnpm lint` — oxlint (type-aware). Typecheck: `pnpm typecheck` (rebuilds `@mimir/contracts` first; bare `tsc --noEmit` reads a possibly stale `dist`).
 - `pnpm db:migrate --name <name>` — create/apply a migration; `pnpm db:deploy` applies pending ones; `pnpm exec prisma generate` regenerates the client.
 
 ## Backend conventions (apps/api)

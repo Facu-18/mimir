@@ -72,6 +72,7 @@ export const updateTicketSchema = z
     status: ticketStatusSchema.optional(),
     priority: ticketPrioritySchema.optional(),
     dueAt: dueAtSchema.optional(),
+    epicId: z.uuid({ error: 'Epic id must be a UUID' }).nullable().optional(),
   })
   .refine((input) => Object.keys(input).length > 0, {
     error: 'At least one field must be provided',
@@ -108,6 +109,7 @@ export const listTicketsQuerySchema = z.strictObject({
   status: csvEnumList(TICKET_STATUSES).optional(),
   type: csvEnumList(TICKET_TYPES).optional(),
   priority: csvEnumList(TICKET_PRIORITIES).optional(),
+  epicId: z.uuid({ error: 'Epic id must be a UUID' }).optional(),
   archived: z.enum(['exclude', 'include', 'only']).default('exclude'),
   sort: z.enum(TICKET_SORT_FIELDS).default('position'),
   order: z.enum(['asc', 'desc']).default('asc'),

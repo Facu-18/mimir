@@ -101,6 +101,14 @@ export class TicketsService {
       // Rich text can be large; the history only notes that it changed.
       if (descriptionChanged) changes.description = { changed: true };
 
+      if (input.epicId !== undefined && input.epicId !== current.epicId) {
+        if (input.epicId !== null) {
+          await this.assertAssignableEpic(tx, current.projectId, input.epicId);
+        }
+        data.epicId = input.epicId;
+        changes.epicId = { from: current.epicId, to: input.epicId };
+      }
+
       if (data.status !== undefined) {
         const status = data.status as TicketStatus;
         data.sortOrder = await this.nextSortOrder(
@@ -193,6 +201,7 @@ export class TicketsService {
       status: query.status ? { in: query.status } : undefined,
       type: query.type ? { in: query.type } : undefined,
       priority: query.priority ? { in: query.priority } : undefined,
+      epicId: query.epicId,
     };
     if (query.archived === 'exclude') where.archivedAt = null;
     if (query.archived === 'only') where.archivedAt = { not: null };
@@ -310,6 +319,21 @@ export class TicketsService {
         payloadJson: payload,
       },
     });
+  }
+
+  private async assertAssignableEpic(
+    tx: Tx,
+    projectId: string,
+    epicId: string,
+  ): Promise<void> {
+    const epic = await tx.epic.findUnique({ where: { id: epicId } });
+    if (!epic) throw new NotFoundException('Epic not found');
+    if (epic.projectId !== projectId) {
+      throw new BadRequestException('Epic must belong to the same project');
+    }
+    if (epic.archivedAt) {
+      throw new ConflictException('Cannot assign an archived epic');
+    }
   }
 
   private async assertProjectAcceptsTickets(projectId: string): Promise<void> {
