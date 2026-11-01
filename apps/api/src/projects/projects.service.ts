@@ -16,6 +16,11 @@ import { WorkspacesService } from '../workspaces/workspaces.service.js';
 const UNIQUE_VIOLATION = 'P2002';
 const RECORD_NOT_FOUND = 'P2025';
 
+/** Escapes LIKE wildcards so user search text is matched literally. */
+function escapeLike(text: string): string {
+  return text.replace(/[\\%_]/g, (char) => `\\${char}`);
+}
+
 @Injectable()
 export class ProjectsService {
   constructor(
@@ -52,8 +57,8 @@ export class ProjectsService {
     if (query.archived === 'only') where.archivedAt = { not: null };
     if (query.q) {
       where.OR = [
-        { name: { contains: query.q, mode: 'insensitive' } },
-        { key: { contains: query.q, mode: 'insensitive' } },
+        { name: { contains: escapeLike(query.q), mode: 'insensitive' } },
+        { key: { contains: escapeLike(query.q), mode: 'insensitive' } },
       ];
     }
     return this.prisma.project.findMany({
@@ -70,6 +75,16 @@ export class ProjectsService {
 
   async update(id: string, input: UpdateProjectInput): Promise<Project> {
     const { key: _immutableKey, ...data } = input;
+    if (data.status !== undefined) {
+      // Archive state is owned by archive/restore; a direct status change
+      // would leave status and archivedAt out of sync.
+      const project = await this.findById(id);
+      if (project.archivedAt) {
+        throw new ConflictException(
+          'Restore the project before changing its status',
+        );
+      }
+    }
     return this.updateOrNotFound(id, data);
   }
 

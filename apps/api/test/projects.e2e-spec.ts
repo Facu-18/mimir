@@ -202,6 +202,44 @@ describe('Projects (e2e)', () => {
         .expect(400);
     });
 
+    it('refuses to change the status of an archived project', async () => {
+      const created = await createProject({ key: 'SB', name: 'Second Brain' });
+      await api().post(`/api/v1/projects/${created.id}/archive`).expect(200);
+
+      const response = await api()
+        .patch(`/api/v1/projects/${created.id}`)
+        .send({ status: 'paused' })
+        .expect(409);
+
+      expect(response.body).toEqual({
+        statusCode: 409,
+        error: 'Conflict',
+        message: 'Restore the project before changing its status',
+      });
+      await expect(
+        prisma.project.findUniqueOrThrow({ where: { id: created.id } }),
+      ).resolves.toMatchObject({
+        status: 'archived',
+        archivedAt: expect.any(Date),
+      });
+    });
+
+    it('still allows other edits on an archived project', async () => {
+      const created = await createProject({ key: 'SB', name: 'Second Brain' });
+      await api().post(`/api/v1/projects/${created.id}/archive`).expect(200);
+
+      const response = await api()
+        .patch(`/api/v1/projects/${created.id}`)
+        .send({ name: 'Renamed' })
+        .expect(200);
+
+      expect(response.body).toMatchObject({
+        name: 'Renamed',
+        status: 'archived',
+        archivedAt: expect.any(String),
+      });
+    });
+
     it('answers 404 for an unknown id', async () => {
       await api()
         .patch(`/api/v1/projects/${UNKNOWN_ID}`)
@@ -289,6 +327,21 @@ describe('Projects (e2e)', () => {
 
       expect(keys(byName.body)).toEqual(['SB']);
       expect(keys(byKey.body)).toEqual(['MIM']);
+    });
+
+    it('treats % and _ in the search text literally', async () => {
+      await seed();
+      await createProject({ key: 'UND', name: 'a_b' });
+      await createProject({ key: 'AXB', name: 'aXb' });
+      await createProject({ key: 'PCT', name: '100% done' });
+
+      const underscore = await api().get('/api/v1/projects?q=a_b').expect(200);
+      const percent = await api().get('/api/v1/projects?q=%25').expect(200);
+      const backslash = await api().get('/api/v1/projects?q=%5C').expect(200);
+
+      expect(keys(underscore.body)).toEqual(['UND']);
+      expect(keys(percent.body)).toEqual(['PCT']);
+      expect(keys(backslash.body)).toEqual([]);
     });
 
     it('filters by status and favorite', async () => {

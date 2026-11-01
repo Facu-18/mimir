@@ -14,9 +14,9 @@ Branch: `feat/prj-001-projects-api` (stacked on `feat/core-002-schema`) · Deliv
 
 Assumptions (decided here, not in the plan):
 - A1: The project key is immutable after creation ("clave corta estable"); PATCH rejects `key`. Input keys are trimmed and upper-cased, then must match the DB rule (2–10 uppercase letters/digits, starting with a letter).
-- A2: Archive sets `status = archived` and `archivedAt = now`; restore sets `status = active` and clears `archivedAt`. POST/PATCH cannot set `status: archived` — only the archive endpoint can. Archiving an archived project (or restoring an active one) is idempotent and returns 200.
+- A2: Archive sets `status = archived` and `archivedAt = now`; restore sets `status = active` and clears `archivedAt`. POST/PATCH cannot set `status: archived` — only the archive endpoint can. Archiving an archived project (or restoring an active one) is idempotent and returns 200. Changing `status` via PATCH while archived answers 409 `Restore the project before changing its status`; other edits stay allowed.
 - A3: No DELETE endpoint (S5: no permanent deletion).
-- A4: `GET /projects` query: `q` (case-insensitive match on name or key), `status`, `isFavorite`, `archived=exclude|include|only` (default `exclude`). Order: favorites first, then `sortOrder`, then name. Response `{ "items": [...] }`; no pagination yet (single user, few projects).
+- A4: `GET /projects` query: `q` (case-insensitive literal match on name or key; `%`, `_` and `\` are escaped), `status`, `isFavorite`, `archived=exclude|include|only` (default `exclude`). Order: favorites first, then `sortOrder`, then name. Response `{ "items": [...] }`; no pagination yet (single user, few projects).
 - A5: Errors use Nest's shape `{ statusCode, error, message }`; validation errors add `issues: [{ path, message }]` (400). Duplicate key → 409 with message `Project key "SB" already exists`. Unknown id → 404 `Project not found`. Non-UUID id → 400.
 - A6: All projects belong to the default workspace; creating a project also creates its `project_counters` row in the same transaction (needed by TSK-001).
 - A7: Activity events for projects are deferred to PRJ-002 (overview activity).
@@ -35,3 +35,4 @@ Risk: item 5 (new dependency `zod` and a new workspace package). Native review: 
 
 - L1 (2026-11-01, user): "sigamos" — continuing after CORE-002; next backend ticket in plan order is PRJ-001.
 - L2 (2026-11-01): T1–T2 done. Checks: contracts 15/15 + tsc; api unit 14/14, e2e 45/45, tsc, oxlint, build green. Branch adds ~940 lines over feat/core-002-schema.
+- L3 (2026-11-01): Independent verifier: S3–S6 PASS; S1/S2 FAIL with 2 blockers — (1) PATCH status on an archived project left status/archivedAt out of sync, (2) search treated % and _ as LIKE wildcards. One correction batch: RED tests reproducing both → fix (409 guard + escapeLike) → GREEN 48/48 e2e, unit 14/14, tsc, oxlint. Advisories kept: form-urlencoded bodies accepted, malformed JSON 400 without issues, collation-dependent name tiebreak.
