@@ -236,6 +236,41 @@ describe('Ticket lifecycle (e2e)', () => {
   });
 
   describe('activity events', () => {
+    it('records one event when the same archive is sent concurrently', async () => {
+      const ticket = await createTicket({ title: 'Double click' });
+
+      const responses = await Promise.all(
+        Array.from({ length: 10 }, () =>
+          api().post(`/api/v1/tickets/${ticket.id}/archive`),
+        ),
+      );
+
+      expect(responses.map((r) => r.status)).toEqual(Array(10).fill(200));
+      const archived = (await events(ticket.id)).filter(
+        (event) => event.type === 'ticket.archived',
+      );
+      expect(archived).toHaveLength(1);
+    });
+
+    it('records one event when the same update is sent concurrently', async () => {
+      const ticket = await createTicket({ title: 'Retry', status: 'todo' });
+
+      const responses = await Promise.all(
+        Array.from({ length: 10 }, () => patch(ticket.id, { status: 'done' })),
+      );
+
+      expect(responses.map((r) => r.status)).toEqual(Array(10).fill(200));
+      const updates = (await events(ticket.id)).filter(
+        (event) => event.type === 'ticket.updated',
+      );
+      expect(updates).toEqual([
+        {
+          type: 'ticket.updated',
+          payload: { changes: { status: { from: 'todo', to: 'done' } } },
+        },
+      ]);
+    });
+
     it('records creation, real changes, archive and restore', async () => {
       const ticket = await createTicket({ title: 'Tracked' });
 

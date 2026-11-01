@@ -224,6 +224,10 @@ describe('Tickets (e2e)', () => {
         'Expected a ticket id or code like SB-001',
       );
     });
+
+    it('answers 400, not 500, for a code whose number cannot exist', async () => {
+      await api().get('/api/v1/tickets/SB-3000000000').expect(400);
+    });
   });
 
   describe('GET /api/v1/projects/:projectId/tickets', () => {
@@ -296,6 +300,16 @@ describe('Tickets (e2e)', () => {
       expect(codes(byTitle.body)).toEqual(['SB-001']);
       expect(codes(byCode.body)).toEqual(['SB-002']);
       expect(codes(literal.body)).toEqual(['SB-003']);
+    });
+
+    it('treats code-like text with a huge number as plain search text', async () => {
+      await seed();
+
+      const response = await api()
+        .get(`/api/v1/projects/${projectId}/tickets?q=SB-3000000000`)
+        .expect(200);
+
+      expect(codes(response.body)).toEqual([]);
     });
 
     it('includes or isolates archived tickets on request', async () => {

@@ -17,6 +17,9 @@ export const ticketPrioritySchema = z.enum(TICKET_PRIORITIES);
 
 const TICKET_CODE_PATTERN = /^([A-Z][A-Z0-9]{1,9})-(\d+)$/;
 
+/** `tickets.number` is a Postgres int4; larger numbers cannot exist. */
+export const MAX_TICKET_NUMBER = 2_147_483_647;
+
 /** `SB` + 1 → `SB-001`; numbers above 999 keep all their digits. */
 export function formatTicketCode(projectKey: string, number: number): string {
   return `${projectKey}-${String(number).padStart(3, '0')}`;
@@ -27,7 +30,9 @@ export function parseTicketCode(text: string): { key: string; number: number } |
   const match = TICKET_CODE_PATTERN.exec(text.trim().toUpperCase());
   if (!match) return null;
   const number = Number(match[2]);
-  return number >= 1 && Number.isSafeInteger(number) ? { key: match[1], number } : null;
+  return number >= 1 && number <= MAX_TICKET_NUMBER
+    ? { key: match[1], number }
+    : null;
 }
 
 const titleSchema = z

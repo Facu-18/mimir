@@ -23,7 +23,14 @@ describe('ticket codes', () => {
     expect(parseTicketCode('MIM-1000')).toEqual({ key: 'MIM', number: 1000 });
   });
 
-  it.each(['SB', 'SB-', 'SB-0', 'SB-x1', '1B-001', 'not a code'])(
+  it('accepts the largest number the database can store', () => {
+    expect(parseTicketCode('SB-2147483647')).toEqual({
+      key: 'SB',
+      number: 2147483647,
+    });
+  });
+
+  it.each(['SB', 'SB-', 'SB-0', 'SB-x1', '1B-001', 'not a code', 'SB-2147483648'])(
     'rejects %j',
     (text) => {
       expect(parseTicketCode(text)).toBeNull();

@@ -62,7 +62,7 @@ export class TicketsService {
     input: UpdateTicketInput,
   ): Promise<TicketWithProjectKey> {
     return this.prisma.$transaction(async (tx) => {
-      const current = await this.findByIdOrThrow(tx, id);
+      const current = await this.lockAndFind(tx, id);
       const data: Prisma.TicketUncheckedUpdateInput = {};
       const changes: Record<string, Prisma.InputJsonObject> = {};
 
@@ -232,7 +232,7 @@ export class TicketsService {
     archived: boolean,
   ): Promise<TicketWithProjectKey> {
     return this.prisma.$transaction(async (tx) => {
-      const current = await this.findByIdOrThrow(tx, id);
+      const current = await this.lockAndFind(tx, id);
       if ((current.archivedAt !== null) === archived) return current;
       const updated = await tx.ticket.update({
         where: { id },
@@ -272,6 +272,16 @@ export class TicketsService {
       },
       include: TICKET_INCLUDE,
     });
+  }
+
+  /**
+   * Locks the ticket row for the rest of the transaction before reading it,
+   * so concurrent writers (double clicks, retries) see each other's changes
+   * and never record the same change twice.
+   */
+  private async lockAndFind(tx: Tx, id: string): Promise<TicketWithProjectKey> {
+    await tx.$queryRaw`SELECT id FROM tickets WHERE id = ${id}::uuid FOR UPDATE`;
+    return this.findByIdOrThrow(tx, id);
   }
 
   private async findByIdOrThrow(
