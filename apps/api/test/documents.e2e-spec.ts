@@ -369,4 +369,49 @@ describe('Documents (e2e)', () => {
       await api().get('/api/v1/documents?archived=all').expect(400);
     });
   });
+
+  describe('GET /api/v1/documents/:id/export', () => {
+    it('downloads the document as Markdown with a safe file name', async () => {
+      const created = await createDocument({
+        title: 'Diseño: arquitectura / v2',
+        contentJson: RICH,
+      });
+
+      const response = await api()
+        .get(`/api/v1/documents/${created.id}/export`)
+        .expect(200);
+
+      expect(response.headers['content-type']).toBe(
+        'text/markdown; charset=utf-8',
+      );
+      expect(response.headers['content-disposition']).toBe(
+        'attachment; filename="diseno-arquitectura-v2.md"',
+      );
+      expect(response.text).toBe(
+        '# Architecture\n\n**Hexagonal **\n\n- [x] ports\n\n```ts\nconst a = 1;\n```\n',
+      );
+    });
+
+    it('names untitled exports after the document and exports empty documents', async () => {
+      const created = await createDocument({ title: '???' });
+
+      const response = await api()
+        .get(`/api/v1/documents/${created.id}/export?format=markdown`)
+        .expect(200);
+
+      expect(response.headers['content-disposition']).toBe(
+        'attachment; filename="document.md"',
+      );
+      expect(response.text).toBe('');
+    });
+
+    it('rejects unknown formats and documents', async () => {
+      const created = await createDocument();
+
+      await api()
+        .get(`/api/v1/documents/${created.id}/export?format=html`)
+        .expect(400);
+      await api().get(`/api/v1/documents/${UNKNOWN_ID}/export`).expect(404);
+    });
+  });
 });

@@ -8,18 +8,24 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
 import {
   createDocumentSchema,
+  exportDocumentQuerySchema,
   listDocumentsQuerySchema,
   updateDocumentSchema,
   type CreateDocumentInput,
   type Document,
   type DocumentList,
+  type ExportDocumentQuery,
   type ListDocumentsQuery,
   type UpdateDocumentInput,
 } from '@mimir/contracts';
+import type { Response } from 'express';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
+import { exportFileName } from './export-file-name.js';
+import { toMarkdown } from './tiptap.js';
 import {
   DocumentsService,
   toDocumentDto,
@@ -50,6 +56,21 @@ export class DocumentsController {
   @Get(':id')
   async findOne(@Param('id', ParseUUIDPipe) id: string): Promise<Document> {
     return toDocumentDto(await this.documents.findById(id));
+  }
+
+  @Get(':id/export')
+  async export(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query(new ZodValidationPipe(exportDocumentQuerySchema))
+    _query: ExportDocumentQuery,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<string> {
+    const document = await this.documents.findById(id);
+    response.set({
+      'Content-Type': 'text/markdown; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${exportFileName(document.title)}.md"`,
+    });
+    return toMarkdown(toDocumentDto(document).contentJson);
   }
 
   @Patch(':id')
