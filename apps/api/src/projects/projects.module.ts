@@ -7,5 +7,6 @@ import { ProjectsService } from './projects.service.js';
   imports: [WorkspacesModule],
   controllers: [ProjectsController],
   providers: [ProjectsService],
+  exports: [ProjectsService],
 })
 export class ProjectsModule {}
