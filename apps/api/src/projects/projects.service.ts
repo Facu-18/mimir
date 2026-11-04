@@ -69,6 +69,14 @@ export class ProjectsService {
     return project;
   }
 
+  /** Documents and canvases can only be linked to existing, active projects. */
+  async assertLinkable(id: string): Promise<void> {
+    const project = await this.findById(id);
+    if (project.archivedAt) {
+      throw new ConflictException('Cannot link to an archived project');
+    }
+  }
+
   async update(id: string, input: UpdateProjectInput): Promise<Project> {
     const { key: _immutableKey, ...data } = input;
     if (data.status !== undefined) {

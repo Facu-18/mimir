@@ -61,7 +61,7 @@ export class DocumentsService {
   ) {}
 
   async create(input: CreateDocumentInput): Promise<Document> {
-    if (input.projectId) await this.assertLinkableProject(input.projectId);
+    if (input.projectId) await this.projects.assertLinkable(input.projectId);
     return this.prisma.document.create({
       data: {
         title: input.title,
@@ -99,7 +99,7 @@ export class DocumentsService {
   }
 
   async update(id: string, input: UpdateDocumentInput): Promise<Document> {
-    if (input.projectId) await this.assertLinkableProject(input.projectId);
+    if (input.projectId) await this.projects.assertLinkable(input.projectId);
     return this.prisma.$transaction(async (tx) => {
       // Lock first so two saves based on the same version cannot both pass
       // the expectedUpdatedAt check.
@@ -153,12 +153,5 @@ export class DocumentsService {
     const document = await tx.document.findUnique({ where: { id } });
     if (!document) throw new NotFoundException('Document not found');
     return document;
-  }
-
-  private async assertLinkableProject(projectId: string): Promise<void> {
-    const project = await this.projects.findById(projectId);
-    if (project.archivedAt) {
-      throw new ConflictException('Cannot link to an archived project');
-    }
   }
 }

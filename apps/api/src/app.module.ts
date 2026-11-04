@@ -7,6 +7,7 @@ import { TicketsModule } from './tickets/tickets.module.js';
 import { EpicsModule } from './epics/epics.module.js';
 import { LabelsModule } from './labels/labels.module.js';
 import { DocumentsModule } from './documents/documents.module.js';
+import { CanvasesModule } from './canvases/canvases.module.js';
 import { WorkspacesModule } from './workspaces/workspaces.module.js';
 
 @Module({
@@ -20,6 +21,7 @@ import { WorkspacesModule } from './workspaces/workspaces.module.js';
     EpicsModule,
     LabelsModule,
     DocumentsModule,
+    CanvasesModule,
   ],
 })
 export class AppModule {}
