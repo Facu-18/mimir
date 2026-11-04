@@ -29,9 +29,9 @@ Assumptions (decided here, not in the plan):
 
 | ID | Specs | Route | Status | Evidence |
 |---|---|---|---|---|
-| T1 | S2, S5, S6 | inline | pending | scene contract |
-| T2 | S1–S6 | inline | pending | repository, CRUD, compare-and-swap, limits, archive |
-| T3 | S1, S4 | inline | pending | editable export and re-import |
+| T1 | S2, S5, S6 | inline | done | RED → GREEN 89 · `63dcd9e` |
+| T2 | S1–S6 | inline | done | RED 17 → GREEN; concurrency test fails 3/3 with a read-then-write mutation, passes 5/5 real · `a013a91` |
+| T3 | S1, S4 | inline | done | RED 2 → GREEN; suite 152/152 twice · `e36a168` |
 
 Route evidence: sequential units over one module; no parallel writer reason; inline.
 Risk: items 1 and 4 (new persisted scene format; compare-and-swap under concurrent saves), item 5 (direct `express` dependency). Native review: unavailable (`gentle-ai` not executable).
@@ -39,3 +39,4 @@ Risk: items 1 and 4 (new persisted scene format; compare-and-swap under concurre
 ## Log
 
 - L1 (2026-11-04, user): "sigamos" — continuing after DOC-001; next backend ticket CAN-002.
+- L2 (2026-11-04): T1–T3 done. Checks: contracts 89/89 and tsc; api unit 24/24, e2e 152/152 (two consecutive runs), typecheck, oxlint with 0 warnings, build. Process slip: `a013a91` was committed while the full suite had one failing test, because that command did not stop on failure; the large-scene test took 5.9 s against the 5 s default, intermittently. Fixed in the next commit with an explicit 30 s timeout, and checks now record each exit code before committing.
