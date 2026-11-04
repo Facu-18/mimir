@@ -33,8 +33,8 @@ export type CreateCanvasResult =
 
 // Scenes are written as one JSON string through raw SQL: Prisma's JSON input
 // costs about 600 ms per MB of structured data, which blocks the event loop
-// and outlasts its default 5 s transaction timeout. The longer limits below
-// only absorb load; a 20 MB scene should take well under a second to write.
+// and outlasts its default 5 s transaction timeout. A full 20 MB save measured
+// about 5 s end to end (7 s for create), so the limits below leave room for load.
 const SCENE_TRANSACTION = { maxWait: 10_000, timeout: 60_000 };
 
 /**
