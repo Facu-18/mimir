@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { sceneAssetIds, type Scene } from '@mimir/contracts';
+import { EMPTY_SCENE, sceneAssetIds, type Scene } from '@mimir/contracts';
 import { Prisma, type Canvas } from '../generated/prisma/client.js';
 import { hasPrismaCode } from '../prisma/prisma-errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -31,9 +31,11 @@ export type SaveSceneResult =
 export type CreateCanvasResult =
   { status: 'created'; canvas: Canvas } | { status: 'asset_not_found' };
 
-function toSceneJson(scene: Scene): Prisma.InputJsonObject {
-  return scene as unknown as Prisma.InputJsonObject;
-}
+// Scenes are written as one JSON string through raw SQL: Prisma's JSON input
+// costs about 600 ms per MB of structured data, which blocks the event loop
+// and outlasts its default 5 s transaction timeout. The longer limits below
+// only absorb load; a 20 MB scene should take well under a second to write.
+const SCENE_TRANSACTION = { maxWait: 10_000, timeout: 60_000 };
 
 /**
  * The only place that persists scenes, so the rest of the API does not
@@ -59,14 +61,24 @@ export class CanvasRepository {
           title: data.title,
           projectId: data.projectId,
           sceneSchemaVersion: data.schemaVersion,
-          sceneJson: toSceneJson(data.scene),
+          sceneJson: EMPTY_SCENE as unknown as Prisma.InputJsonObject,
           assets: {
             create: assetIds.map((assetId) => ({ assetId })),
           },
         },
       });
-      return { status: 'created', canvas };
-    });
+      await tx.$executeRaw`
+        UPDATE canvases
+        SET scene_json = ${JSON.stringify(data.scene)}::jsonb
+        WHERE id = ${canvas.id}::uuid`;
+      return {
+        status: 'created',
+        canvas: {
+          ...canvas,
+          sceneJson: data.scene as unknown as Prisma.JsonValue,
+        },
+      };
+    }, SCENE_TRANSACTION);
   }
 
   findById(id: string): Promise<Canvas | null> {
@@ -107,14 +119,13 @@ export class CanvasRepository {
       if (!(await this.assetsExist(tx, assetIds))) {
         return { status: 'asset_not_found' };
       }
-      const { count } = await tx.canvas.updateMany({
-        where: { id, revision: input.expectedRevision },
-        data: {
-          sceneJson: toSceneJson(input.scene),
-          sceneSchemaVersion: input.schemaVersion,
-          revision: { increment: 1 },
-        },
-      });
+      const count = await tx.$executeRaw`
+        UPDATE canvases
+        SET scene_json = ${JSON.stringify(input.scene)}::jsonb,
+            scene_schema_version = ${input.schemaVersion}::int,
+            revision = revision + 1,
+            updated_at = clock_timestamp()
+        WHERE id = ${id}::uuid AND revision = ${input.expectedRevision}::int`;
       const canvas = await tx.canvas.findUnique({
         where: { id },
         select: CANVAS_SUMMARY_SELECT,
@@ -130,7 +141,7 @@ export class CanvasRepository {
         skipDuplicates: true,
       });
       return { status: 'saved', canvas };
-    });
+    }, SCENE_TRANSACTION);
   }
 
   /** Conditional, so repeating it keeps the original archive timestamp. */

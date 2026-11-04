@@ -6,6 +6,18 @@ export const MAX_SCENE_ELEMENTS = 200_000;
 
 const NUL = String.fromCharCode(0);
 
+// With the u flag this only matches a surrogate that is not part of a pair,
+// such as text cut in the middle of an emoji.
+const UNPAIRED_SURROGATE = /\p{Cs}/u;
+
+function findTextProblem(text: string): string | null {
+  if (text.includes(NUL)) return 'Scene contains invalid NUL characters';
+  if (UNPAIRED_SURROGATE.test(text)) {
+    return 'Scene contains invalid text (unpaired surrogate)';
+  }
+  return null;
+}
+
 /**
  * Walks an untrusted value iteratively, so hostile nesting cannot overflow
  * the stack, and reports the first problem Postgres `jsonb` could not store.
@@ -15,7 +27,8 @@ function findSceneProblem(root: unknown): string | null {
   while (stack.length > 0) {
     const [value, depth] = stack.pop()!;
     if (typeof value === 'string') {
-      if (value.includes(NUL)) return 'Scene contains invalid NUL characters';
+      const problem = findTextProblem(value);
+      if (problem) return problem;
       continue;
     }
     if (typeof value !== 'object' || value === null) continue;
@@ -25,7 +38,8 @@ function findSceneProblem(root: unknown): string | null {
       continue;
     }
     for (const [key, item] of Object.entries(value)) {
-      if (key.includes(NUL)) return 'Scene contains invalid NUL characters';
+      const problem = findTextProblem(key);
+      if (problem) return problem;
       stack.push([item, depth + 1]);
     }
   }

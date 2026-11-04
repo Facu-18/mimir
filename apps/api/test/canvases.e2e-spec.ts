@@ -297,6 +297,47 @@ describe('Canvases (e2e)', () => {
       await save(created.id, 1, tooBig).expect(413);
     }, 30_000);
 
+    it('saves and creates realistic scenes near the 20 MB limit', async () => {
+      const points = Array.from({ length: 200 }, (_, i) => [
+        (i + 1) * 1.5,
+        (i + 1) * -0.5,
+      ]);
+      const strokes = Array.from({ length: 7000 }, (_, i) =>
+        rectangle(`stroke-${i}`, { type: 'freedraw', points }),
+      );
+      const big = scene(...strokes);
+      expect(JSON.stringify(big).length).toBeGreaterThan(15_000_000);
+      expect(JSON.stringify(big).length).toBeLessThan(20_000_000);
+
+      const created = await createCanvas();
+      const saved = await save(created.id, 0, big);
+      expect(saved.status).toBe(200);
+      const fresh = await api().post('/api/v1/canvases').send({ scene: big });
+      expect(fresh.status).toBe(201);
+      expect(fresh.body.scene.elements).toHaveLength(7000);
+
+      const row = await prisma.$queryRaw<
+        { count: number; revision: number; updated: boolean }[]
+      >`SELECT jsonb_array_length(scene_json->'elements')::int AS count,
+               revision,
+               updated_at > created_at AS updated
+        FROM canvases WHERE id = ${created.id}::uuid`;
+      expect(row[0]).toEqual({ count: 7000, revision: 1, updated: true });
+    }, 60_000);
+
+    it('answers 400, not 500, for text cut in the middle of an emoji', async () => {
+      const created = await createCanvas();
+      const cut = `x${String.fromCharCode(0xd83d)}`;
+
+      await save(created.id, 0, scene(rectangle('a', { text: cut }))).expect(
+        400,
+      );
+      await api()
+        .post('/api/v1/canvases')
+        .send({ scene: scene(rectangle('a', { text: cut })) })
+        .expect(400);
+    });
+
     it('keeps the 2 MB limit on other endpoints', async () => {
       await api()
         .post('/api/v1/projects')

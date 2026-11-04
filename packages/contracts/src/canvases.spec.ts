@@ -68,6 +68,29 @@ describe('sceneSchema', () => {
   });
 });
 
+describe('sceneSchema text encoding', () => {
+  const lone = String.fromCharCode(0xd83d);
+  const emoji = String.fromCodePoint(0x1f600);
+
+  it('rejects unpaired surrogates in values and keys, which jsonb cannot store', () => {
+    const inValue = { elements: [{ id: 'a', type: 'text', text: `cut${lone}` }] };
+    const inKey = { elements: [{ id: 'a', type: 'text', [`k${lone}`]: 1 }] };
+    const inAppState = { elements: [], appState: { name: lone } };
+
+    for (const scene of [inValue, inKey, inAppState]) {
+      expect(messages(sceneSchema.safeParse(scene))).toEqual([
+        'Scene contains invalid text (unpaired surrogate)',
+      ]);
+    }
+  });
+
+  it('accepts complete emoji', () => {
+    const scene = { elements: [{ id: 'a', type: 'text', text: emoji }] };
+
+    expect(sceneSchema.safeParse(scene).success).toBe(true);
+  });
+});
+
 describe('saveSceneSchema', () => {
   const valid = {
     expectedRevision: 3,
