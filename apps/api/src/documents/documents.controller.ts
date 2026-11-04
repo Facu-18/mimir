@@ -24,7 +24,7 @@ import {
 } from '@mimir/contracts';
 import type { Response } from 'express';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
-import { exportFileName } from './export-file-name.js';
+import { exportFileName } from '../common/export-file-name.js';
 import { toMarkdown } from './tiptap.js';
 import {
   DocumentsService,

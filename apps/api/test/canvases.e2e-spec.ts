@@ -295,7 +295,7 @@ describe('Canvases (e2e)', () => {
         rectangle('huge', { blob: 'x'.repeat(21 * 1024 * 1024) }),
       );
       await save(created.id, 1, tooBig).expect(413);
-    });
+    }, 30_000);
 
     it('keeps the 2 MB limit on other endpoints', async () => {
       await api()
@@ -430,6 +430,57 @@ describe('Canvases (e2e)', () => {
       expect(restored.body).toMatchObject({ archivedAt: null, revision: 1 });
       await api().post(`/api/v1/canvases/${UNKNOWN_ID}/archive`).expect(404);
       await api().post(`/api/v1/canvases/${UNKNOWN_ID}/restore`).expect(404);
+    });
+  });
+
+  describe('GET /api/v1/canvases/:id/export', () => {
+    it('downloads an editable file that can be imported back exactly', async () => {
+      const content = scene(rectangle('a'), rectangle('b'));
+      const created = await createCanvas({ title: 'Diseño: mapa / v2' });
+      await save(created.id, 0, content).expect(200);
+
+      const response = await api()
+        .get(`/api/v1/canvases/${created.id}/export`)
+        .expect(200);
+
+      expect(response.headers['content-type']).toBe(
+        'application/json; charset=utf-8',
+      );
+      expect(response.headers['content-disposition']).toBe(
+        'attachment; filename="diseno-mapa-v2.mimir-canvas.json"',
+      );
+      expect(response.body).toEqual({
+        format: 'mimir-canvas',
+        formatVersion: 1,
+        title: 'Diseño: mapa / v2',
+        schemaVersion: 1,
+        revision: 1,
+        scene: content,
+      });
+
+      const imported = await createCanvas({
+        title: response.body.title,
+        schemaVersion: response.body.schemaVersion,
+        scene: response.body.scene,
+      });
+      expect(imported).toMatchObject({ revision: 0, scene: content });
+      expect(imported.id).not.toBe(created.id);
+    });
+
+    it('names the file after the canvas when the title has no usable characters', async () => {
+      const created = await createCanvas({ title: '???' });
+
+      const response = await api()
+        .get(`/api/v1/canvases/${created.id}/export`)
+        .expect(200);
+
+      expect(response.headers['content-disposition']).toBe(
+        'attachment; filename="canvas.mimir-canvas.json"',
+      );
+    });
+
+    it('answers 404 for an unknown canvas', async () => {
+      await api().get(`/api/v1/canvases/${UNKNOWN_ID}/export`).expect(404);
     });
   });
 
