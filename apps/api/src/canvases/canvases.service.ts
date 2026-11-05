@@ -53,6 +53,9 @@ export class CanvasesService {
 
   async update(id: string, input: UpdateCanvasInput): Promise<Canvas> {
     if (input.projectId) await this.projects.assertLinkable(input.projectId);
+    if (input.thumbnailAssetId) {
+      await this.assets.assertExists(input.thumbnailAssetId);
+    }
     return this.orNotFound(await this.canvases.updateMetadata(id, input));
   }
 

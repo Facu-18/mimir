@@ -1,5 +1,6 @@
 import {
   CURRENT_SCENE_SCHEMA_VERSION,
+  createCanvasLinkSchema,
   createCanvasSchema,
   listCanvasesQuerySchema,
   saveSceneSchema,
@@ -147,6 +148,32 @@ describe('canvas metadata schemas', () => {
     expect(updateCanvasSchema.safeParse({}).success).toBe(false);
     expect(updateCanvasSchema.safeParse({ scene: { elements: [] } }).success).toBe(false);
     expect(updateCanvasSchema.safeParse({ revision: 9 }).success).toBe(false);
+  });
+
+  it('lets PATCH set or clear the preview', () => {
+    expect(updateCanvasSchema.parse({ thumbnailAssetId: ASSET_ID })).toEqual({
+      thumbnailAssetId: ASSET_ID,
+    });
+    expect(updateCanvasSchema.parse({ thumbnailAssetId: null })).toEqual({
+      thumbnailAssetId: null,
+    });
+    expect(updateCanvasSchema.safeParse({ thumbnailAssetId: 'x' }).success).toBe(false);
+  });
+
+  it('only links canvases to projects, tickets and documents', () => {
+    for (const targetType of ['project', 'ticket', 'document']) {
+      expect(createCanvasLinkSchema.safeParse({ targetType, targetId: ASSET_ID }).success).toBe(
+        true,
+      );
+    }
+    for (const targetType of ['canvas', 'asset', 'workspace', 'epic']) {
+      expect(createCanvasLinkSchema.safeParse({ targetType, targetId: ASSET_ID }).success).toBe(
+        false,
+      );
+    }
+    expect(createCanvasLinkSchema.safeParse({ targetType: 'ticket', targetId: 'x' }).success).toBe(
+      false,
+    );
   });
 
   it('parses list filters', () => {
