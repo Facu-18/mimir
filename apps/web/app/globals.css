@@ -1,0 +1,6 @@
+@import 'tailwindcss';
+@import '@mimir/ui/tokens.css';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/jetbrains-mono';
+
+@source '../../../packages/ui/src';

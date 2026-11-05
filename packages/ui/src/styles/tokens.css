@@ -1,0 +1,167 @@
+/*
+ * Semantic tokens. Components use these names, never raw colors.
+ * tokens.spec.ts reads this file and checks real contrast in both themes,
+ * so keep values as #rrggbb or rgb(r g b / a).
+ */
+:root {
+  --bg: #f4efe7;
+  --surface: #fbf8f2;
+  --surface-raised: #ffffff;
+  --text: #222624;
+  --text-muted: #5a625b;
+  --accent: #55654f;
+  --accent-hover: #47563f;
+  --accent-text: #4c5b47;
+  --on-accent: #fbf8f2;
+  --secondary: #7a6450;
+  --border: #ddd4c6;
+  --border-strong: #717c6e;
+  --focus: #4f5f4c;
+  --danger: #a63d2a;
+  --danger-hover: #8e3323;
+  --danger-text: #9a3825;
+  --on-danger: #fff8f4;
+  --success-text: #3f6b45;
+  --warning-text: #80580f;
+  --glass: rgb(251 248 242 / 0.82);
+  --overlay: rgb(0 0 0 / 0.4);
+  --shadow: rgb(34 38 36 / 0.16);
+
+  --glass-blur: 12px;
+  --duration-hover: 130ms;
+  --duration-view: 180ms;
+  --duration-panel: 220ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-theme="dark"] {
+  --bg: #222624;
+  --surface: #343c36;
+  --surface-raised: #3d463f;
+  --text: #e8dfd2;
+  --text-muted: #c4bcaf;
+  --accent: #81917e;
+  --accent-hover: #93a38f;
+  --accent-text: #bccab8;
+  --on-accent: #161917;
+  --secondary: #c6af98;
+  --border: #4a544c;
+  --border-strong: #94a290;
+  --focus: #c6af98;
+  --danger: #e08e7b;
+  --danger-hover: #e9a595;
+  --danger-text: #f0ae9f;
+  --on-danger: #2a1410;
+  --success-text: #b4cfb1;
+  --warning-text: #e3c083;
+  --glass: rgb(52 60 54 / 0.82);
+  --overlay: rgb(0 0 0 / 0.4);
+  --shadow: rgb(0 0 0 / 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-hover: 0ms;
+    --duration-view: 0ms;
+    --duration-panel: 0ms;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-text: var(--accent-text);
+  --color-on-accent: var(--on-accent);
+  --color-secondary: var(--secondary);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-danger-text: var(--danger-text);
+  --color-on-danger: var(--on-danger);
+  --color-success-text: var(--success-text);
+  --color-warning-text: var(--warning-text);
+  --color-overlay: var(--overlay);
+}
+
+@theme {
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --font-sans: 'Inter Variable', system-ui, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+}
+
+@layer base {
+  html {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  code,
+  kbd,
+  pre {
+    font-family: var(--font-mono);
+  }
+}
+
+@layer components {
+  /* Floating surfaces only: dialogs, tooltips, menus. */
+  .glass {
+    background: var(--glass);
+    backdrop-filter: blur(var(--glass-blur));
+    border: 1px solid var(--border);
+    box-shadow: 0 12px 32px var(--shadow);
+  }
+
+  .transition-hover {
+    transition-property: background-color, border-color, color, opacity;
+    transition-duration: var(--duration-hover);
+    transition-timing-function: var(--ease-out);
+  }
+
+  .animate-panel {
+    animation: mimir-panel-in var(--duration-panel) var(--ease-out);
+  }
+
+  .animate-overlay {
+    animation: mimir-fade-in var(--duration-panel) var(--ease-out);
+  }
+
+  /*
+   * No animation at all, rather than a zero duration: Radix keeps a closing
+   * element mounted until its animation ends, and a 0s one never reports that.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-panel,
+    .animate-overlay {
+      animation: none;
+    }
+  }
+}
+
+@keyframes mimir-panel-in {
+  from {
+    opacity: 0;
+    /* Adds to the centering, which Tailwind sets through the `translate` property. */
+    transform: translateY(8px) scale(0.98);
+  }
+}
+
+@keyframes mimir-fade-in {
+  from {
+    opacity: 0;
+  }
+}
