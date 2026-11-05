@@ -9,17 +9,13 @@ import type {
   UpdateProjectInput,
 } from '@mimir/contracts';
 import type { Prisma, Project } from '../generated/prisma/client.js';
+import { escapeLike } from '../common/escape-like.js';
 import { hasPrismaCode } from '../prisma/prisma-errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { WorkspacesService } from '../workspaces/workspaces.service.js';
 
 const UNIQUE_VIOLATION = 'P2002';
 const RECORD_NOT_FOUND = 'P2025';
-
-/** Escapes LIKE wildcards so user search text is matched literally. */
-function escapeLike(text: string): string {
-  return text.replace(/[\\%_]/g, (char) => `\\${char}`);
-}
 
 @Injectable()
 export class ProjectsService {
