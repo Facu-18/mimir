@@ -28,7 +28,7 @@ function storeTheme(page: Page, value: string) {
 test.describe('theme', () => {
   test('follows the system by default', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
-    await page.goto('/');
+    await page.goto('/gallery/');
     expect(await theme(page)).toBe('dark');
 
     await page.emulateMedia({ colorScheme: 'light' });
@@ -37,7 +37,7 @@ test.describe('theme', () => {
 
   test('keeps the choice after reloading', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'light' });
-    await page.goto('/');
+    await page.goto('/gallery/');
 
     await page.getByRole('radio', { name: 'Dark' }).click();
     expect(await theme(page)).toBe('dark');
@@ -54,7 +54,7 @@ test.describe('theme', () => {
     await storeTheme(page, 'dark');
     await page.route('**/_next/static/**/*.js', (route) => route.abort());
 
-    await page.goto('/');
+    await page.goto('/gallery/');
 
     expect(await theme(page)).toBe('dark');
     const background = await page.evaluate(
@@ -71,7 +71,7 @@ test.describe('theme', () => {
     });
     await storeTheme(page, 'dark');
 
-    await page.goto('/');
+    await page.goto('/gallery/');
     await expect(page.getByRole('radio', { name: 'Dark' })).toBeChecked();
 
     expect(errors).toEqual([]);
@@ -81,7 +81,7 @@ test.describe('theme', () => {
 test.describe('keyboard', () => {
   test('shows a visible focus ring', async ({ page }) => {
     await storeTheme(page, 'dark');
-    await page.goto('/');
+    await page.goto('/gallery/');
     await expect(page.getByRole('radio', { name: 'System' })).toBeVisible();
 
     const button = page.getByRole('button', { name: 'Primary' });
@@ -108,7 +108,7 @@ test.describe('keyboard', () => {
   test('changes the theme with the arrow keys', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'light' });
     await storeTheme(page, 'light');
-    await page.goto('/');
+    await page.goto('/gallery/');
     await expect(page.getByRole('radio', { name: 'Light' })).toBeChecked();
 
     await page.getByRole('radio', { name: 'Light' }).focus();
@@ -125,7 +125,7 @@ test.describe('keyboard', () => {
   test('opens the dialog, traps focus and returns it on Escape', async ({
     page,
   }) => {
-    await page.goto('/');
+    await page.goto('/gallery/');
     const trigger = page.getByRole('button', { name: 'Open dialog' });
 
     await trigger.focus();
@@ -146,7 +146,7 @@ test.describe('keyboard', () => {
   });
 
   test('shows the tooltip on focus', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/gallery/');
 
     await page.getByRole('button', { name: 'New ticket' }).focus();
 
@@ -163,7 +163,7 @@ for (const name of THEMES) {
     test('has no accessibility violations, contrast included', async ({
       page,
     }) => {
-      await page.goto('/');
+      await page.goto('/gallery/');
       await expect(
         page.getByRole('radio', { name, exact: false }),
       ).toBeChecked();
@@ -177,7 +177,7 @@ for (const name of THEMES) {
     test('has no accessibility violations with the dialog open', async ({
       page,
     }) => {
-      await page.goto('/');
+      await page.goto('/gallery/');
       await page.getByRole('button', { name: 'Open dialog' }).click();
       await expect(page.getByRole('dialog')).toBeVisible();
       await page.waitForTimeout(300);
@@ -190,7 +190,7 @@ for (const name of THEMES) {
     test('matches the reference screenshot', async ({ page }) => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.setViewportSize({ width: 1024, height: 900 });
-      await page.goto('/');
+      await page.goto('/gallery/');
       await page.evaluate(() => document.fonts.ready);
 
       await expect(page).toHaveScreenshot(`gallery-${name}.png`, {
@@ -206,7 +206,7 @@ test.describe('dialog', () => {
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await page.goto('/');
+    await page.goto('/gallery/');
     await page.getByRole('button', { name: 'Open dialog' }).click();
     const dialog = page.getByRole('dialog');
 
@@ -229,7 +229,7 @@ test.describe('dialog', () => {
 
   test('stays reachable in a very short window', async ({ page }) => {
     await page.setViewportSize({ width: 360, height: 200 });
-    await page.goto('/');
+    await page.goto('/gallery/');
     await page.getByRole('button', { name: 'Open dialog' }).click();
     const dialog = page.getByRole('dialog');
     await page.waitForTimeout(300);
@@ -243,7 +243,7 @@ test.describe('dialog', () => {
 
 test.describe('floating surfaces', () => {
   test('use a light blur, while solid surfaces use none', async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/gallery/');
     const card = page.getByRole('heading', { name: 'Buttons' }).locator('..');
     expect(
       await card.evaluate((node) => getComputedStyle(node).backdropFilter),
@@ -262,7 +262,7 @@ test.describe('floating surfaces', () => {
 test.describe('reduced motion', () => {
   test('still closes a tooltip opened by hovering', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/');
+    await page.goto('/gallery/');
     const button = page.getByRole('button', { name: 'New ticket' });
 
     await button.hover();
@@ -274,7 +274,7 @@ test.describe('reduced motion', () => {
 
   test('still closes the dialog', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/');
+    await page.goto('/gallery/');
     await page.getByRole('button', { name: 'Open dialog' }).click();
 
     await page.getByRole('button', { name: 'Cancel' }).click();
@@ -284,7 +284,7 @@ test.describe('reduced motion', () => {
 
   test('removes the CSS durations', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/');
+    await page.goto('/gallery/');
 
     const durations = await Promise.all(
       ['--duration-hover', '--duration-view', '--duration-panel'].map((name) =>
@@ -297,14 +297,14 @@ test.describe('reduced motion', () => {
 
   test('keeps the plan timings otherwise', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await page.goto('/');
+    await page.goto('/gallery/');
 
     expect(await durationMs(page, '--duration-panel')).toBe(220);
   });
 
   test('opens the dialog with no animation', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/');
+    await page.goto('/gallery/');
 
     await page.getByRole('button', { name: 'Open dialog' }).click();
 
@@ -316,12 +316,12 @@ test.describe('reduced motion', () => {
 
   test('skips the view entrance movement', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    await page.goto('/');
+    await page.goto('/gallery/');
     const heading = page.getByRole('heading', { name: 'Mimir' });
     await expect(heading).toBeVisible();
 
-    const transform = await heading
-      .locator('xpath=ancestor::div[contains(@class,"max-w-3xl")]')
+    const transform = await page
+      .locator('[data-view]')
       .evaluate((node) => getComputedStyle(node).transform);
 
     expect(transform).toBe('none');

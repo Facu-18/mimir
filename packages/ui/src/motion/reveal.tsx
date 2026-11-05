@@ -20,6 +20,7 @@ export function Reveal({
 }) {
   return (
     <motion.div
+      data-view=""
       className={className}
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}

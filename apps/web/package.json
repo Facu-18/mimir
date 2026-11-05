@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1 --port 3001",
     "build": "next build",
-    "lint": "oxlint --type-aware app/ e2e/",
+    "lint": "oxlint --type-aware app/ components/ features/ e2e/",
     "typecheck": "next typegen && tsc --noEmit",
     "test:e2e": "playwright test"
   },
@@ -17,7 +17,8 @@
     "lucide-react": "1.66.0",
     "next": "16.4.5",
     "react": "19.3.1",
-    "react-dom": "19.3.1"
+    "react-dom": "19.3.1",
+    "zustand": "5.0.16"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",

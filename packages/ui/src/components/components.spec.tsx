@@ -1,8 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { useState } from 'react';
 import { Badge } from './badge';
 import { Button } from './button';
 import { Card } from './card';
+import { ConfirmDialog } from './confirm-dialog';
 import {
   Dialog,
   DialogContent,
@@ -81,6 +83,81 @@ describe('Badge and Card', () => {
     );
 
     expect(screen.getByText('Done')).toHaveClass('text-success-text');
+  });
+});
+
+describe('ConfirmDialog', () => {
+  const setup = () => {
+    const onConfirm = vi.fn();
+    const onCancel = vi.fn();
+    render(
+      <ConfirmDialog
+        open
+        title="Discard changes?"
+        description="Your edits will be lost."
+        confirmLabel="Discard"
+        cancelLabel="Keep editing"
+        onConfirm={onConfirm}
+        onCancel={onCancel}
+      />,
+    );
+    return { onConfirm, onCancel };
+  };
+
+  it('returns focus to where it was when it closes', async () => {
+    function Example() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <Input aria-label="Field" onKeyDown={() => setOpen(true)} />
+          <ConfirmDialog
+            open={open}
+            title="Discard changes?"
+            description="Your edits will be lost."
+            confirmLabel="Discard"
+            cancelLabel="Keep editing"
+            onConfirm={() => setOpen(false)}
+            onCancel={() => setOpen(false)}
+          />
+        </>
+      );
+    }
+    render(<Example />);
+    const field = screen.getByLabelText('Field');
+    field.focus();
+
+    await userEvent.keyboard('a');
+    expect(screen.getByRole('button', { name: 'Keep editing' })).toHaveFocus();
+    await userEvent.keyboard('{Escape}');
+
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    expect(field).toHaveFocus();
+  });
+
+  it('starts on the safe choice', () => {
+    setup();
+
+    expect(
+      screen.getByRole('alertdialog', { name: 'Discard changes?' }),
+    ).toBeVisible();
+    expect(screen.getByRole('button', { name: 'Keep editing' })).toHaveFocus();
+  });
+
+  it('cancels with Escape and confirms only on request', async () => {
+    const { onConfirm, onCancel } = setup();
+
+    await userEvent.keyboard('{Escape}');
+
+    expect(onCancel).toHaveBeenCalledOnce();
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+
+  it('confirms with its button', async () => {
+    const { onConfirm } = setup();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Discard' }));
+
+    expect(onConfirm).toHaveBeenCalledOnce();
   });
 });
 

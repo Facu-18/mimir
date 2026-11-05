@@ -4,3 +4,81 @@
 @import '@fontsource-variable/jetbrains-mono';
 
 @source '../../../packages/ui/src';
+
+/*
+ * The shell is drawn from attributes on <html>, which an inline script sets
+ * before first paint, so a collapsed sidebar or open panel never flashes.
+ */
+@layer utilities {
+  .shell-sidebar {
+    width: 15rem;
+    transition: width var(--duration-panel) var(--ease-out);
+  }
+
+  .shell-rail-only,
+  .shell-details-close {
+    display: none;
+  }
+
+  html[data-sidebar='collapsed'] .shell-sidebar {
+    width: 3.5rem;
+  }
+
+  html[data-sidebar='collapsed'] .shell-label {
+    display: none;
+  }
+
+  html[data-sidebar='collapsed'] .shell-rail-only {
+    display: inline;
+  }
+
+  .shell-details {
+    display: none;
+    width: var(--panel-width, 320px);
+    max-width: 60%;
+    border-left: 1px solid var(--border);
+    background: var(--surface);
+  }
+
+  html[data-panel='open'] .shell-details {
+    display: block;
+    animation: mimir-fade-in var(--duration-panel) var(--ease-out);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html[data-panel='open'] .shell-details {
+      animation: none;
+    }
+  }
+
+  /* Small windows: an icon rail, and the panel floats over the content. */
+  @media (max-width: 767px) {
+    .shell-sidebar {
+      width: 3.5rem;
+    }
+
+    .shell-label,
+    .shell-sidebar-toggle,
+    .shell-details-handle,
+    html[data-panel='open'] .shell-panel-toggle {
+      display: none;
+    }
+
+    .shell-rail-only,
+    .shell-details-close {
+      display: inline-flex;
+    }
+
+    .shell-details {
+      position: fixed;
+      inset-block: 0;
+      right: 0;
+      z-index: 40;
+      width: min(var(--panel-width, 320px), calc(100vw - 3.5rem));
+      max-width: none;
+      background: var(--glass);
+      backdrop-filter: blur(var(--glass-blur));
+      box-shadow: 0 12px 32px var(--shadow);
+    }
+  }
+}
