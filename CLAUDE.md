@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-Early implementation: only the backend exists (`apps/api` — NestJS 12 + Prisma 7 + PostgreSQL in Docker) with the full MVP data model (CORE-002), a default-workspace bootstrap, `/api/v1/health`, and the API for projects (PRJ-001), tickets (TSK-001), epics/labels/subtasks/dependencies (TSK-004), documents (DOC-001), canvases (CAN-002), canvas image assets (CAN-003) and canvas previews and links (CAN-004), plus `packages/contracts` (shared Zod schemas). No frontend yet. Feature work is tracked in `odd/tasks/<feature>.md` (specs, assumptions, task evidence). The source of truth for everything else is `mimir-plan-maestro.md` (written in Spanish) — product plan, data model, REST API, and the 21-ticket MVP backlog. Read the relevant sections before working on any ticket.
+Early implementation: the frontend has its visual system only (`apps/web` — Next.js static export showing a temporary component gallery — and `packages/ui`; UI-001), with no app shell or API calls yet. The backend (`apps/api` — NestJS 12 + Prisma 7 + PostgreSQL in Docker) has the full MVP data model (CORE-002), a default-workspace bootstrap, `/api/v1/health`, and the API for projects (PRJ-001), tickets (TSK-001), epics/labels/subtasks/dependencies (TSK-004), documents (DOC-001), canvases (CAN-002), canvas image assets (CAN-003) and canvas previews and links (CAN-004), plus `packages/contracts` (shared Zod schemas). Feature work is tracked in `odd/tasks/<feature>.md` (specs, assumptions, task evidence). The source of truth for everything else is `mimir-plan-maestro.md` (written in Spanish) — product plan, data model, REST API, and the 21-ticket MVP backlog. Read the relevant sections before working on any ticket.
 
 ## Commands
 
@@ -12,7 +12,9 @@ Root (pnpm 12 workspace, Node >= 24):
 
 - `pnpm db:up` / `pnpm db:down` — Postgres 17 container `mimir-postgres`, bound to `127.0.0.1:5433` (5432 is taken by a local Postgres on this machine).
 - `pnpm api:dev` — API in watch mode on `http://127.0.0.1:3000/api/v1`.
-- `pnpm build` / `pnpm lint` / `pnpm test` — run across all workspace packages.
+- `pnpm web:dev` — web app on `http://127.0.0.1:3001`.
+- `pnpm build` / `pnpm lint` / `pnpm typecheck` / `pnpm test` — run across all workspace packages.
+- `pnpm test:ui` — Playwright browser tests against the static export (`apps/web/e2e`); first run needs `pnpm --filter @mimir/web exec playwright install chromium`. Add `--update-snapshots` only after looking at a visual change; reference screenshots come from Windows.
 
 Inside `apps/api` (copy `.env.example` to `.env` first):
 
@@ -40,6 +42,14 @@ Inside `apps/api` (copy `.env.example` to `.env` first):
 - Never edit an applied migration: Prisma checksums them. `.gitattributes` forces LF for that reason.
 - Database connectivity failures must not crash the API: `DatabaseUnavailableFilter` (global, in `PrismaModule`) maps them to `503 Database unavailable` via `isDatabaseUnavailableError`; other Prisma errors keep Nest's default handling. The default workspace (`DEFAULT_WORKSPACE_ID`) is upserted on bootstrap and lazily by `WorkspacesService.getDefault()`.
 - pnpm 12 blocks dependency build scripts; allowed ones are listed under `allowBuilds` in `pnpm-workspace.yaml`. `prisma@latest` currently resolves to an 8.x RC — keep `prisma` and `@prisma/client` pinned to the same stable version.
+
+## Frontend conventions (apps/web, packages/ui)
+
+- Components use semantic tokens from `packages/ui/src/styles/tokens.css` through Tailwind (`bg-surface`, `text-text-muted`), never raw colors. `tokens.spec.ts` checks real contrast there: 4.5:1 for text, 3:1 for control borders and focus, in both themes and over glass. Add new color tokens to both themes.
+- Glass (`.glass`) is only for floating surfaces; solid surfaces use `Card`. Animate `transform` and `opacity`, using the `--duration-*` tokens, which drop to zero under reduced motion.
+- `packages/ui` is consumed as source (`transpilePackages`). Keep `apps/web` compatible with `output: 'export'`: no SSR, Server Actions or API Routes.
+- The theme is applied before first paint by `THEME_INIT_SCRIPT`; keep it in step with `readThemeChoice` and `applyTheme`.
+- pnpm enforces a minimum release age. If `pnpm add` writes `minimumReleaseAgeExclude` into `pnpm-workspace.yaml`, the version is too new: pick an older one and remove the exclusion instead of committing it.
 
 ## What Mimir is
 

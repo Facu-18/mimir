@@ -9,8 +9,11 @@
     "db:up": "docker compose up -d postgres",
     "db:down": "docker compose down",
     "api:dev": "pnpm --filter @mimir/api start:dev",
+    "web:dev": "pnpm --filter @mimir/web dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
-    "test": "pnpm -r test"
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:ui": "pnpm --filter @mimir/web test:e2e"
   }
 }
