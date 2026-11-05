@@ -1,0 +1,13 @@
+{
+  "name": "@mimir/desktop",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prepare-runtime": "node scripts/prepare-runtime.mjs",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "2.12.4"
+  }
+}
