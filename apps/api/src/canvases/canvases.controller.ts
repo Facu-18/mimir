@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -10,14 +11,19 @@ import {
   Put,
   Query,
   Res,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   CANVAS_EXPORT_FORMAT,
   CANVAS_EXPORT_FORMAT_VERSION,
   createCanvasSchema,
   listCanvasesQuerySchema,
+  MAX_ASSET_BYTES,
   saveSceneSchema,
   updateCanvasSchema,
+  type Asset,
   type Canvas,
   type CanvasExport,
   type CanvasList,
@@ -28,6 +34,8 @@ import {
   type UpdateCanvasInput,
 } from '@mimir/contracts';
 import type { Response } from 'express';
+import { toAssetDto } from '../assets/asset.mapper.js';
+import type { IncomingFile } from '../assets/assets.service.js';
 import { exportFileName } from '../common/export-file-name.js';
 import { ZodValidationPipe } from '../common/zod-validation.pipe.js';
 import { toCanvasDto, toCanvasSummary, toSceneSaved } from './canvas.mapper.js';
@@ -76,7 +84,24 @@ export class CanvasesController {
       schemaVersion: canvas.schemaVersion,
       revision: canvas.revision,
       scene: canvas.scene,
+      assets: (await this.canvases.listAssets(id)).map(toAssetDto),
     };
+  }
+
+  @Post(':id/assets')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      // No text fields: multer would buffer them, outside the file size limit.
+      limits: { fileSize: MAX_ASSET_BYTES, files: 1, fields: 0 },
+      defParamCharset: 'utf8',
+    }),
+  )
+  async addAsset(
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file: IncomingFile | undefined,
+  ): Promise<Asset> {
+    if (!file) throw new BadRequestException('File is required');
+    return toAssetDto(await this.canvases.addAsset(id, file));
   }
 
   @Patch(':id')

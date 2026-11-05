@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { EMPTY_SCENE, sceneAssetIds, type Scene } from '@mimir/contracts';
-import { Prisma, type Canvas } from '../generated/prisma/client.js';
+import { Prisma, type Asset, type Canvas } from '../generated/prisma/client.js';
 import { hasPrismaCode } from '../prisma/prisma-errors.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 
@@ -83,6 +83,13 @@ export class CanvasRepository {
 
   findById(id: string): Promise<Canvas | null> {
     return this.prisma.canvas.findUnique({ where: { id } });
+  }
+
+  findAssets(canvasId: string): Promise<Asset[]> {
+    return this.prisma.asset.findMany({
+      where: { canvases: { some: { canvasId } } },
+      orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    });
   }
 
   list(where: Prisma.CanvasWhereInput): Promise<CanvasSummaryRow[]> {

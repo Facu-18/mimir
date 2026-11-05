@@ -9,7 +9,8 @@ import type {
   SaveSceneInput,
   UpdateCanvasInput,
 } from '@mimir/contracts';
-import type { Canvas, Prisma } from '../generated/prisma/client.js';
+import type { Asset, Canvas, Prisma } from '../generated/prisma/client.js';
+import { AssetsService, type IncomingFile } from '../assets/assets.service.js';
 import { escapeLike } from '../common/escape-like.js';
 import { ProjectsService } from '../projects/projects.service.js';
 import {
@@ -22,6 +23,7 @@ export class CanvasesService {
   constructor(
     private readonly canvases: CanvasRepository,
     private readonly projects: ProjectsService,
+    private readonly assets: AssetsService,
   ) {}
 
   async create(input: CreateCanvasInput): Promise<Canvas> {
@@ -85,6 +87,16 @@ export class CanvasesService {
 
   async restore(id: string): Promise<Canvas> {
     return this.orNotFound(await this.canvases.setArchived(id, false));
+  }
+
+  /** `canvas_assets` only changes on save: it follows what the scene references. */
+  async addAsset(id: string, file: IncomingFile): Promise<Asset> {
+    await this.findById(id);
+    return this.assets.store(file);
+  }
+
+  listAssets(id: string): Promise<Asset[]> {
+    return this.canvases.findAssets(id);
   }
 
   private orNotFound(canvas: Canvas | null): Canvas {
