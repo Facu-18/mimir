@@ -117,6 +117,9 @@ test.describe('keyboard', () => {
 
     await expect(page.getByRole('radio', { name: 'Dark' })).toBeChecked();
     expect(await theme(page)).toBe('dark');
+
+    await page.keyboard.press('ArrowDown', { delay: 50 });
+    await expect(page.getByRole('radio', { name: 'System' })).toBeChecked();
   });
 
   test('opens the dialog, traps focus and returns it on Escape', async ({
@@ -198,6 +201,46 @@ for (const name of THEMES) {
   });
 }
 
+test.describe('dialog', () => {
+  test('rises a few pixels on opening, without sliding across the page', async ({
+    page,
+  }) => {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open dialog' }).click();
+    const dialog = page.getByRole('dialog');
+
+    const { start, end } = await dialog.evaluate((node) => {
+      const [animation] = node.getAnimations();
+      animation!.pause();
+      animation!.currentTime = 0;
+      const start = node.getBoundingClientRect();
+      animation!.finish();
+      const end = node.getBoundingClientRect();
+      return {
+        start: { x: start.x, y: start.y },
+        end: { x: end.x, y: end.y },
+      };
+    });
+
+    expect(Math.abs(start.y - end.y)).toBeLessThanOrEqual(16);
+    expect(Math.abs(start.x - end.x)).toBeLessThanOrEqual(16);
+  });
+
+  test('stays reachable in a very short window', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 200 });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open dialog' }).click();
+    const dialog = page.getByRole('dialog');
+    await page.waitForTimeout(300);
+
+    const box = await dialog.boundingBox();
+
+    expect(box!.y).toBeGreaterThanOrEqual(0);
+    expect(box!.y + box!.height).toBeLessThanOrEqual(200);
+  });
+});
+
 test.describe('floating surfaces', () => {
   test('use a light blur, while solid surfaces use none', async ({ page }) => {
     await page.goto('/');
@@ -217,6 +260,28 @@ test.describe('floating surfaces', () => {
 });
 
 test.describe('reduced motion', () => {
+  test('still closes a tooltip opened by hovering', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/');
+    const button = page.getByRole('button', { name: 'New ticket' });
+
+    await button.hover();
+    await expect(page.getByRole('tooltip')).toBeVisible();
+    await page.mouse.move(5, 5, { steps: 5 });
+
+    await expect(page.getByRole('tooltip')).toHaveCount(0);
+  });
+
+  test('still closes the dialog', async ({ page }) => {
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await page.goto('/');
+    await page.getByRole('button', { name: 'Open dialog' }).click();
+
+    await page.getByRole('button', { name: 'Cancel' }).click();
+
+    await expect(page.getByRole('dialog')).toHaveCount(0);
+  });
+
   test('removes the CSS durations', async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto('/');
@@ -243,10 +308,10 @@ test.describe('reduced motion', () => {
 
     await page.getByRole('button', { name: 'Open dialog' }).click();
 
-    const duration = await page
+    const animation = await page
       .getByRole('dialog')
-      .evaluate((node) => getComputedStyle(node).animationDuration);
-    expect(['0s', '0ms']).toContain(duration);
+      .evaluate((node) => getComputedStyle(node).animationName);
+    expect(animation).toBe('none');
   });
 
   test('skips the view entrance movement', async ({ page }) => {

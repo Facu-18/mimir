@@ -15,7 +15,7 @@
   --on-accent: #fbf8f2;
   --secondary: #7a6450;
   --border: #ddd4c6;
-  --border-strong: #7f8a7c;
+  --border-strong: #717c6e;
   --focus: #4f5f4c;
   --danger: #a63d2a;
   --danger-hover: #8e3323;
@@ -24,6 +24,7 @@
   --success-text: #3f6b45;
   --warning-text: #80580f;
   --glass: rgb(251 248 242 / 0.82);
+  --overlay: rgb(0 0 0 / 0.4);
   --shadow: rgb(34 38 36 / 0.16);
 
   --glass-blur: 12px;
@@ -54,6 +55,7 @@
   --success-text: #b4cfb1;
   --warning-text: #e3c083;
   --glass: rgb(52 60 54 / 0.82);
+  --overlay: rgb(0 0 0 / 0.4);
   --shadow: rgb(0 0 0 / 0.35);
 }
 
@@ -84,6 +86,7 @@
   --color-on-danger: var(--on-danger);
   --color-success-text: var(--success-text);
   --color-warning-text: var(--warning-text);
+  --color-overlay: var(--overlay);
 }
 
 @theme {
@@ -136,12 +139,24 @@
   .animate-overlay {
     animation: mimir-fade-in var(--duration-panel) var(--ease-out);
   }
+
+  /*
+   * No animation at all, rather than a zero duration: Radix keeps a closing
+   * element mounted until its animation ends, and a 0s one never reports that.
+   */
+  @media (prefers-reduced-motion: reduce) {
+    .animate-panel,
+    .animate-overlay {
+      animation: none;
+    }
+  }
 }
 
 @keyframes mimir-panel-in {
   from {
     opacity: 0;
-    transform: translate(-50%, calc(-50% + 8px)) scale(0.98);
+    /* Adds to the centering, which Tailwind sets through the `translate` property. */
+    transform: translateY(8px) scale(0.98);
   }
 }
 

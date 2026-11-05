@@ -35,7 +35,6 @@ export function ThemeSwitcher({ className }: { className?: string }) {
   return (
     <RadioGroup.Root
       aria-label="Theme"
-      orientation="horizontal"
       value={choice}
       onValueChange={select}
       className={cn(

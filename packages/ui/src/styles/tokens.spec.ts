@@ -87,6 +87,8 @@ describe.each(Object.entries(THEMES))('%s theme contrast', (_name, tokens) => {
       raised: color('--surface-raised'),
       glass: over(color('--glass'), bg),
       'glass over surface': over(color('--glass'), color('--surface')),
+      // What a dialog really sits on: its overlay dims the page behind the glass.
+      'dialog glass': over(color('--glass'), over(color('--overlay'), bg)),
     };
   };
 

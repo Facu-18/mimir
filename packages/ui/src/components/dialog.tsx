@@ -15,10 +15,10 @@ export function DialogContent({
 }: ComponentProps<typeof RadixDialog.Content>) {
   return (
     <RadixDialog.Portal>
-      <RadixDialog.Overlay className="animate-overlay fixed inset-0 bg-black/40" />
+      <RadixDialog.Overlay className="animate-overlay fixed inset-0 bg-overlay" />
       <RadixDialog.Content
         className={cn(
-          'glass animate-panel fixed top-1/2 left-1/2 w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 rounded-lg p-6 text-text',
+          'glass animate-panel fixed top-1/2 left-1/2 max-h-[calc(100dvh-2rem)] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg p-6 text-text',
           className,
         )}
         {...props}

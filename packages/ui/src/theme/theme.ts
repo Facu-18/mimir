@@ -31,7 +31,7 @@ export function readThemeChoice(): ThemeChoice {
     const stored = localStorage.getItem(THEME_STORAGE_KEY);
     if (stored === 'light' || stored === 'dark') return stored;
   } catch {
-    // Blocked storage: the theme still works for this session.
+    // Blocked storage: with nothing to read, the theme follows the system.
   }
   return 'system';
 }
@@ -40,7 +40,7 @@ export function storeThemeChoice(choice: ThemeChoice): void {
   try {
     localStorage.setItem(THEME_STORAGE_KEY, choice);
   } catch {
-    // Blocked storage: the theme still works for this session.
+    // Blocked storage: the choice applies until the next reload or system change.
   }
 }
 
