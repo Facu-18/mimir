@@ -30,10 +30,10 @@ Assumptions (decided here, not in the plan):
 
 | ID | Specs | Route | Status | Evidence |
 |---|---|---|---|---|
-| T1 | S7, S8 | inline | pending | |
-| T2 | S2–S6 | inline | pending | |
-| T3 | S1, S2 | inline | pending | |
-| T4 | S2, S3 | inline | pending | |
+| T1 | S7, S8 | inline | done | Static build, dev server answers 200, root build, typecheck and lint · `99b6efb` |
+| T2 | S2–S6 | inline | done | Specs failed first, then green; contrast and blur mutations fail · `99b6efb`, theme sync in the next commit |
+| T3 | S1, S2 | inline | done | Specs failed first, then green · `99b6efb` |
+| T4 | S2, S3 | inline | done | 19 browser tests; focus, axe contrast, reduced motion, init script and theme sync mutations fail · `2061ac7` |
 
 Route evidence: sequential units over one new package; no parallel writer reason; inline.
 Risk: item 5 (new frontend dependencies and build tooling). Native review: unavailable (`gentle-ai` not executable).
@@ -41,3 +41,6 @@ Risk: item 5 (new frontend dependencies and build tooling). Native review: unava
 ## Log
 
 - L1 (2026-11-05, user): "todo listo en master vamos con UI-001"
+- L2 (2026-11-05): `pnpm add` wrote `minimumReleaseAgeExclude` for `lucide-react@1.69.0` and `jsdom@31.0.0`, which were hours old. Not accepted: pinned `lucide-react@1.66.0` and `jsdom@30.1.3`, removed the exclusions and rebuilt the lockfile from master's; `pnpm install --frozen-lockfile` passes.
+- L3 (2026-11-05): Process slip, the same as CAN-002 L2: `99b6efb` and `2061ac7` were committed while one browser test had failed, because that command did not stop on failure. The failure was a real defect, not noise: the system theme listener lived in `ThemeSwitcher`, so a change during hydration was lost and any screen without a switcher would stop following the system. Fixed with `ThemeSync` in the root layout (RED, then 43/43 unit; the browser test passes 15/15 repeated). Commits now run behind a chain that stops on any failure.
+- L4 (2026-11-05): One restore during the mutation run failed with `Permission denied`, which could have contaminated the next mutation. Checked that nothing stayed mutated and repeated that mutation alone; axe reports `color-contrast`.

@@ -1,6 +1,11 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { MotionProvider, THEME_INIT_SCRIPT, TooltipProvider } from '@mimir/ui';
+import {
+  MotionProvider,
+  THEME_INIT_SCRIPT,
+  ThemeSync,
+  TooltipProvider,
+} from '@mimir/ui';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -16,6 +21,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="min-h-dvh bg-bg text-text">
+        <ThemeSync />
         <MotionProvider>
           <TooltipProvider>{children}</TooltipProvider>
         </MotionProvider>

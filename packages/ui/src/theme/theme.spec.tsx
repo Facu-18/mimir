@@ -1,4 +1,4 @@
-import { act, render, screen } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { ThemeSwitcher } from './theme-switcher';
 import { THEME_INIT_SCRIPT, THEME_STORAGE_KEY } from './theme';
@@ -87,19 +87,6 @@ describe('ThemeSwitcher', () => {
     expect(root().style.colorScheme).toBe('dark');
     expect(localStorage.getItem(THEME_STORAGE_KEY)).toBe('dark');
     expect(screen.getByRole('radio', { name: 'Dark' })).toBeChecked();
-  });
-
-  it('follows system changes only while on system', async () => {
-    const setSystem = mockSystemTheme('light');
-    render(<ThemeSwitcher />);
-
-    act(() => setSystem('dark'));
-    expect(root().dataset.theme).toBe('dark');
-
-    await userEvent.click(screen.getByRole('radio', { name: 'Light' }));
-    act(() => setSystem('light'));
-    act(() => setSystem('dark'));
-    expect(root().dataset.theme).toBe('light');
   });
 
   it('still changes the theme when storage is blocked', async () => {

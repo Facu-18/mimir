@@ -48,7 +48,7 @@ Inside `apps/api` (copy `.env.example` to `.env` first):
 - Components use semantic tokens from `packages/ui/src/styles/tokens.css` through Tailwind (`bg-surface`, `text-text-muted`), never raw colors. `tokens.spec.ts` checks real contrast there: 4.5:1 for text, 3:1 for control borders and focus, in both themes and over glass. Add new color tokens to both themes.
 - Glass (`.glass`) is only for floating surfaces; solid surfaces use `Card`. Animate `transform` and `opacity`, using the `--duration-*` tokens, which drop to zero under reduced motion.
 - `packages/ui` is consumed as source (`transpilePackages`). Keep `apps/web` compatible with `output: 'export'`: no SSR, Server Actions or API Routes.
-- The theme is applied before first paint by `THEME_INIT_SCRIPT`; keep it in step with `readThemeChoice` and `applyTheme`.
+- The theme is applied before first paint by `THEME_INIT_SCRIPT`; keep it in step with `readThemeChoice` and `applyTheme`. `ThemeSync` in the root layout follows system changes on every screen.
 - pnpm enforces a minimum release age. If `pnpm add` writes `minimumReleaseAgeExclude` into `pnpm-workspace.yaml`, the version is too new: pick an older one and remove the exclusion instead of committing it.
 
 ## What Mimir is

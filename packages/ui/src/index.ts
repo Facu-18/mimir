@@ -9,3 +9,4 @@ export * from './lib/cn';
 export * from './motion/reveal';
 export * from './theme/theme';
 export * from './theme/theme-switcher';
+export * from './theme/theme-sync';

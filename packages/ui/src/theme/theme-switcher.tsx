@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react';
 import { cn } from '../lib/cn';
 import {
   applyTheme,
-  onSystemThemeChange,
   readThemeChoice,
   storeThemeChoice,
   type ThemeChoice,
@@ -25,11 +24,6 @@ export function ThemeSwitcher({ className }: { className?: string }) {
   useEffect(() => {
     setChoice(readThemeChoice());
   }, []);
-
-  useEffect(() => {
-    if (choice !== 'system') return;
-    return onSystemThemeChange(() => applyTheme('system'));
-  }, [choice]);
 
   function select(value: string) {
     const next = value as ThemeChoice;
