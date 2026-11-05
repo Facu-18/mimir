@@ -49,6 +49,11 @@ export class AssetsService {
     }
   }
 
+  async assertExists(id: string): Promise<void> {
+    const found = await this.prisma.asset.count({ where: { id } });
+    if (found === 0) throw new NotFoundException('Asset not found');
+  }
+
   /** The caller owns the returned handle. */
   async openContent(id: string): Promise<{ asset: Asset; file: FileHandle }> {
     const asset = await this.prisma.asset.findUnique({ where: { id } });

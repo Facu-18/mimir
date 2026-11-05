@@ -103,7 +103,11 @@ export class CanvasRepository {
   /** Metadata only: never touches the scene, revision or asset references. */
   async updateMetadata(
     id: string,
-    data: { title?: string; projectId?: string | null },
+    data: {
+      title?: string;
+      projectId?: string | null;
+      thumbnailAssetId?: string | null;
+    },
   ): Promise<Canvas | null> {
     try {
       return await this.prisma.canvas.update({ where: { id }, data });

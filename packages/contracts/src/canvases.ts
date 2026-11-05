@@ -126,6 +126,7 @@ export const updateCanvasSchema = z
   .strictObject({
     title: titleSchema.optional(),
     projectId: projectIdSchema.optional(),
+    thumbnailAssetId: z.uuid({ error: 'Asset id must be a UUID' }).nullable().optional(),
   })
   .refine((input) => Object.keys(input).length > 0, {
     error: 'At least one field must be provided',
@@ -195,7 +196,33 @@ export const canvasExportSchema = z.object({
   assets: z.array(assetSchema),
 });
 
-export type CreateCanvasInput = z.infer<typeof createCanvasSchema>;
+export const CANVAS_LINK_TARGET_TYPES = ['project', 'ticket', 'document'] as const;
+
+export type CanvasLinkTargetType = (typeof CANVAS_LINK_TARGET_TYPES)[number];
+
+export const createCanvasLinkSchema = z.strictObject({
+  targetType: z.enum(CANVAS_LINK_TARGET_TYPES, {
+    error: 'Target type must be project, ticket or document',
+  }),
+  targetId: z.uuid({ error: 'Target id must be a UUID' }),
+});
+
+/** Carries what the client needs to show and open the target. */
+export const canvasLinkSchema = z.object({
+  id: z.uuid(),
+  targetType: z.enum(CANVAS_LINK_TARGET_TYPES),
+  targetId: z.uuid(),
+  title: z.string(),
+  code: z.string().nullable(),
+  archived: z.boolean(),
+  createdAt: z.iso.datetime(),
+});
+
+export type CreateCanvasLinkInput = z.infer<typeof createCanvasLinkSchema>;
+export type CanvasLink = z.infer<typeof canvasLinkSchema>;
+export type CanvasLinkList = { items: CanvasLink[] };
+
+export type CreateCanvasInput =z.infer<typeof createCanvasSchema>;
 export type UpdateCanvasInput = z.infer<typeof updateCanvasSchema>;
 export type SaveSceneInput = z.infer<typeof saveSceneSchema>;
 export type ListCanvasesQuery = z.infer<typeof listCanvasesQuerySchema>;
