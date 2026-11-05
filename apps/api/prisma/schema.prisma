@@ -1,0 +1,322 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  moduleFormat        = "esm"
+  importFileExtension = "js"
+  previewFeatures     = ["partialIndexes"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// Conventions: UUID ids, snake_case tables/columns, UTC timestamptz,
+// logical deletes through `archived_at`. CHECK constraints live in the
+// migration SQL because Prisma cannot express them.
+
+enum ProjectStatus {
+  active
+  paused
+  completed
+  archived
+
+  @@map("project_status")
+}
+
+enum EpicStatus {
+  planned
+  in_progress
+  done
+  canceled
+
+  @@map("epic_status")
+}
+
+enum TicketType {
+  task
+  bug
+  feature
+  improvement
+
+  @@map("ticket_type")
+}
+
+enum TicketStatus {
+  backlog
+  todo
+  in_progress
+  in_review
+  done
+  canceled
+
+  @@map("ticket_status")
+}
+
+enum TicketPriority {
+  none
+  low
+  medium
+  high
+  urgent
+
+  @@map("ticket_priority")
+}
+
+enum EntityType {
+  workspace
+  project
+  epic
+  ticket
+  document
+  canvas
+  asset
+
+  @@map("entity_type")
+}
+
+model Workspace {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  projects Project[]
+
+  @@map("workspaces")
+}
+
+model Project {
+  id          String        @id @default(uuid()) @db.Uuid
+  workspaceId String        @map("workspace_id") @db.Uuid
+  key         String
+  name        String
+  description String        @default("")
+  icon        String?
+  color       String?
+  status      ProjectStatus @default(active)
+  isFavorite  Boolean       @default(false) @map("is_favorite")
+  sortOrder   Float         @default(0) @map("sort_order")
+  createdAt   DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt  DateTime?     @map("archived_at") @db.Timestamptz(3)
+
+  workspace Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  counter   ProjectCounter?
+  epics     Epic[]
+  tickets   Ticket[]
+  labels    Label[]
+  documents Document[]
+  canvases  Canvas[]
+
+  @@unique([workspaceId, key])
+  @@index([workspaceId, status])
+  @@index([createdAt])
+  @@map("projects")
+}
+
+model ProjectCounter {
+  projectId        String @id @map("project_id") @db.Uuid
+  nextTicketNumber Int    @default(1) @map("next_ticket_number")
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_counters")
+}
+
+model Epic {
+  id          String     @id @default(uuid()) @db.Uuid
+  projectId   String     @map("project_id") @db.Uuid
+  title       String
+  description String     @default("")
+  status      EpicStatus @default(planned)
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt  DateTime?  @map("archived_at") @db.Timestamptz(3)
+
+  project Project  @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  tickets Ticket[]
+
+  @@index([projectId, status])
+  @@map("epics")
+}
+
+model Ticket {
+  id              String         @id @default(uuid()) @db.Uuid
+  projectId       String         @map("project_id") @db.Uuid
+  number          Int
+  parentId        String?        @map("parent_id") @db.Uuid
+  epicId          String?        @map("epic_id") @db.Uuid
+  title           String
+  descriptionJson Json?          @map("description_json")
+  descriptionText String         @default("") @map("description_text")
+  type            TicketType     @default(task)
+  status          TicketStatus   @default(backlog)
+  priority        TicketPriority @default(none)
+  sortOrder       Float          @default(0) @map("sort_order")
+  dueAt           DateTime?      @map("due_at") @db.Timestamptz(3)
+  completedAt     DateTime?      @map("completed_at") @db.Timestamptz(3)
+  createdAt       DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt      DateTime?      @map("archived_at") @db.Timestamptz(3)
+
+  project      Project            @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  parent       Ticket?            @relation("TicketHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children     Ticket[]           @relation("TicketHierarchy")
+  epic         Epic?              @relation(fields: [epicId], references: [id], onDelete: SetNull)
+  dependencies TicketDependency[] @relation("DependentTicket")
+  dependents   TicketDependency[] @relation("DependencyTicket")
+  labels       TicketLabel[]
+
+  @@unique([projectId, number])
+  @@index([projectId, status, sortOrder])
+  @@index([parentId])
+  @@index([epicId])
+  @@index([dueAt])
+  @@index([createdAt])
+  @@map("tickets")
+}
+
+model TicketDependency {
+  ticketId          String   @map("ticket_id") @db.Uuid
+  dependsOnTicketId String   @map("depends_on_ticket_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  ticket    Ticket @relation("DependentTicket", fields: [ticketId], references: [id], onDelete: Cascade)
+  dependsOn Ticket @relation("DependencyTicket", fields: [dependsOnTicketId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, dependsOnTicketId])
+  @@index([dependsOnTicketId])
+  @@map("ticket_dependencies")
+}
+
+model Label {
+  id        String  @id @default(uuid()) @db.Uuid
+  projectId String? @map("project_id") @db.Uuid
+  name      String
+  color     String
+
+  project Project?      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  tickets TicketLabel[]
+
+  @@unique([projectId, name])
+  @@unique([name], where: raw("project_id IS NULL"), map: "labels_global_name_key")
+  @@map("labels")
+}
+
+model TicketLabel {
+  ticketId String @map("ticket_id") @db.Uuid
+  labelId  String @map("label_id") @db.Uuid
+
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  label  Label  @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, labelId])
+  @@index([labelId])
+  @@map("ticket_labels")
+}
+
+model Document {
+  id               String    @id @default(uuid()) @db.Uuid
+  projectId        String?   @map("project_id") @db.Uuid
+  parentDocumentId String?   @map("parent_document_id") @db.Uuid
+  title            String
+  contentJson      Json?     @map("content_json")
+  contentText      String    @default("") @map("content_text")
+  createdAt        DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt       DateTime? @map("archived_at") @db.Timestamptz(3)
+
+  project  Project?   @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  parent   Document?  @relation("DocumentHierarchy", fields: [parentDocumentId], references: [id], onDelete: SetNull)
+  children Document[] @relation("DocumentHierarchy")
+
+  @@index([projectId])
+  @@index([parentDocumentId])
+  @@index([createdAt])
+  @@map("documents")
+}
+
+model Canvas {
+  id                 String    @id @default(uuid()) @db.Uuid
+  projectId          String?   @map("project_id") @db.Uuid
+  title              String
+  sceneJson          Json      @map("scene_json")
+  sceneSchemaVersion Int       @default(1) @map("scene_schema_version")
+  revision           Int       @default(0)
+  thumbnailAssetId   String?   @map("thumbnail_asset_id") @db.Uuid
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+  archivedAt         DateTime? @map("archived_at") @db.Timestamptz(3)
+
+  project   Project?      @relation(fields: [projectId], references: [id], onDelete: Restrict)
+  thumbnail Asset?        @relation("CanvasThumbnail", fields: [thumbnailAssetId], references: [id], onDelete: SetNull)
+  assets    CanvasAsset[]
+
+  @@index([projectId])
+  @@index([createdAt])
+  @@map("canvases")
+}
+
+model Asset {
+  id         String   @id @default(uuid()) @db.Uuid
+  filename   String
+  mimeType   String   @map("mime_type")
+  sizeBytes  BigInt   @map("size_bytes")
+  checksum   String
+  storageKey String   @unique @map("storage_key")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  canvases    CanvasAsset[]
+  thumbnailOf Canvas[]      @relation("CanvasThumbnail")
+
+  @@index([checksum])
+  @@map("assets")
+}
+
+model CanvasAsset {
+  canvasId String @map("canvas_id") @db.Uuid
+  assetId  String @map("asset_id") @db.Uuid
+
+  canvas Canvas @relation(fields: [canvasId], references: [id], onDelete: Cascade)
+  asset  Asset  @relation(fields: [assetId], references: [id], onDelete: Restrict)
+
+  @@id([canvasId, assetId])
+  @@index([assetId])
+  @@map("canvas_assets")
+}
+
+// Polymorphic link between any two entities; existence of the referenced
+// rows is validated by the application services (plan §6).
+model EntityLink {
+  id         String     @id @default(uuid()) @db.Uuid
+  sourceType EntityType @map("source_type")
+  sourceId   String     @map("source_id") @db.Uuid
+  targetType EntityType @map("target_type")
+  targetId   String     @map("target_id") @db.Uuid
+  createdAt  DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@unique([sourceType, sourceId, targetType, targetId])
+  @@index([targetType, targetId])
+  @@map("entity_links")
+}
+
+model ActivityEvent {
+  id          String     @id @default(uuid()) @db.Uuid
+  entityType  EntityType @map("entity_type")
+  entityId    String     @map("entity_id") @db.Uuid
+  eventType   String     @map("event_type")
+  payloadJson Json       @default("{}") @map("payload_json")
+  createdAt   DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([entityType, entityId, createdAt])
+  @@index([createdAt])
+  @@map("activity_events")
+}
+
+model AppSetting {
+  key       String   @id
+  valueJson Json     @map("value_json")
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("app_settings")
+}
