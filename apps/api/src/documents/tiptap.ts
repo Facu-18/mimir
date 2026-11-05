@@ -188,13 +188,11 @@ function escapeBlockStart(text: string): string {
  * backslashes, angle brackets and parentheses.
  */
 function encodeUrl(url: string): string {
-  return url
-    .trim()
-    .replace(
-      // Control characters are matched on purpose: they must be encoded.
-      // oxlint-disable-next-line no-control-regex
-      /[\x00-\x20\x7f<>"`\\()]/g,
-      (char) =>
-        `%${char.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`,
-    );
+  return url.trim().replace(
+    // Control characters are matched on purpose: they must be encoded.
+    // oxlint-disable-next-line no-control-regex
+    /[\x00-\x20\x7f<>"`\\()]/g,
+    (char) =>
+      `%${char.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`,
+  );
 }
