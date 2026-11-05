@@ -91,7 +91,8 @@ export class CanvasesController {
   @Post(':id/assets')
   @UseInterceptors(
     FileInterceptor('file', {
-      limits: { fileSize: MAX_ASSET_BYTES, files: 1 },
+      // No text fields: multer would buffer them, outside the file size limit.
+      limits: { fileSize: MAX_ASSET_BYTES, files: 1, fields: 0 },
       defParamCharset: 'utf8',
     }),
   )

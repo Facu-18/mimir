@@ -163,17 +163,22 @@ describe('Canvas assets (e2e)', () => {
     }, 30_000);
 
     it('asks for a file when none arrives', async () => {
-      const multipart = await api()
-        .post(`/api/v1/canvases/${canvasId}/assets`)
-        .field('other', 'value')
-        .expect(400);
       const json = await api()
         .post(`/api/v1/canvases/${canvasId}/assets`)
         .send({ file: 'x' })
         .expect(400);
 
-      expect(multipart.body.message).toBe('File is required');
       expect(json.body.message).toBe('File is required');
+    });
+
+    it('rejects text fields, which would otherwise be buffered without limit', async () => {
+      await api()
+        .post(`/api/v1/canvases/${canvasId}/assets`)
+        .field('other', 'value')
+        .attach('file', png(), 'a.png')
+        .expect(400);
+
+      expect(await prisma.asset.count()).toBe(0);
     });
 
     it('rejects files in another field and more than one file', async () => {
