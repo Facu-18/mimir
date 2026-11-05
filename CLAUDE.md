@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-Early implementation: the frontend has its visual system only (`apps/web` — Next.js static export showing a temporary component gallery — and `packages/ui`; UI-001), with no app shell or API calls yet. The backend (`apps/api` — NestJS 12 + Prisma 7 + PostgreSQL in Docker) has the full MVP data model (CORE-002), a default-workspace bootstrap, `/api/v1/health`, and the API for projects (PRJ-001), tickets (TSK-001), epics/labels/subtasks/dependencies (TSK-004), documents (DOC-001), canvases (CAN-002), canvas image assets (CAN-003) and canvas previews and links (CAN-004), plus `packages/contracts` (shared Zod schemas). Feature work is tracked in `odd/tasks/<feature>.md` (specs, assumptions, task evidence). The source of truth for everything else is `mimir-plan-maestro.md` (written in Spanish) — product plan, data model, REST API, and the 21-ticket MVP backlog. Read the relevant sections before working on any ticket.
+Early implementation: the frontend has its visual system (`packages/ui`; UI-001) and app shell (`apps/web`, a Next.js static export; UI-002), with empty screens and no API calls yet. The backend (`apps/api` — NestJS 12 + Prisma 7 + PostgreSQL in Docker) has the full MVP data model (CORE-002), a default-workspace bootstrap, `/api/v1/health`, and the API for projects (PRJ-001), tickets (TSK-001), epics/labels/subtasks/dependencies (TSK-004), documents (DOC-001), canvases (CAN-002), canvas image assets (CAN-003) and canvas previews and links (CAN-004), plus `packages/contracts` (shared Zod schemas). Feature work is tracked in `odd/tasks/<feature>.md` (specs, assumptions, task evidence). The source of truth for everything else is `mimir-plan-maestro.md` (written in Spanish) — product plan, data model, REST API, and the 21-ticket MVP backlog. Read the relevant sections before working on any ticket.
 
 ## Commands
 
@@ -49,6 +49,9 @@ Inside `apps/api` (copy `.env.example` to `.env` first):
 - Glass (`.glass`) is only for floating surfaces; solid surfaces use `Card`. Animate `transform` and `opacity`, using the `--duration-*` tokens, which drop to zero under reduced motion.
 - `packages/ui` is consumed as source (`transpilePackages`). Keep `apps/web` compatible with `output: 'export'`: no SSR, Server Actions or API Routes.
 - The theme is applied before first paint by `THEME_INIT_SCRIPT`; keep it in step with `readThemeChoice` and `applyTheme`. `ThemeSync` in the root layout follows system changes on every screen.
+- `AppShell` in the root layout stays mounted across routes. Shell state lives in `useShellStore`, which CSS reads through attributes on `<html>`; keep `SHELL_INIT_SCRIPT` in step with it. Shell CSS is in `@layer utilities`, because Tailwind utilities beat the `components` layer.
+- A screen with editable state must call `useUnsavedChanges(dirty)`, and any programmatic navigation must go through `useGuardedNavigate()`, or edits can be lost without a prompt. Routes end in `/` (`trailingSlash`).
+- Browser tests must assert real behaviour, such as positions and whether things close, rather than only computed styles; run them with and without reduced motion.
 - pnpm enforces a minimum release age. If `pnpm add` writes `minimumReleaseAgeExclude` into `pnpm-workspace.yaml`, the version is too new: pick an older one and remove the exclusion instead of committing it.
 
 ## What Mimir is

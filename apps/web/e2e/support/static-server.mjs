@@ -24,11 +24,9 @@ createServer((request, response) => {
   if (existsSync(file) && statSync(file).isDirectory()) {
     file = join(file, 'index.html');
   }
-  if (!existsSync(file)) {
-    response.writeHead(404).end();
-    return;
-  }
-  response.writeHead(200, {
+  const found = existsSync(file);
+  if (!found) file = join(root, '404.html');
+  response.writeHead(found ? 200 : 404, {
     'Content-Type': TYPES[extname(file)] ?? 'application/octet-stream',
   });
   createReadStream(file).pipe(response);
