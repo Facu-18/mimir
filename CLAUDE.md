@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Current state
 
-Early implementation: only the backend exists (`apps/api` — NestJS 12 + Prisma 7 + PostgreSQL in Docker) with the full MVP data model (CORE-002), a default-workspace bootstrap and `/api/v1/health`; no feature endpoints yet. Feature work is tracked in `odd/tasks/<feature>.md` (specs, assumptions, task evidence). The source of truth for everything else is `mimir-plan-maestro.md` (written in Spanish) — product plan, data model, REST API, and the 21-ticket MVP backlog. Read the relevant sections before working on any ticket.
+Early implementation: only the backend exists (`apps/api` — NestJS 12 + Prisma 7 + PostgreSQL in Docker) with the full MVP data model (CORE-002), a default-workspace bootstrap, `/api/v1/health` and the projects endpoints (PRJ-001 API), plus `packages/contracts` (shared Zod schemas). No frontend yet. Feature work is tracked in `odd/tasks/<feature>.md` (specs, assumptions, task evidence). The source of truth for everything else is `mimir-plan-maestro.md` (written in Spanish) — product plan, data model, REST API, and the 21-ticket MVP backlog. Read the relevant sections before working on any ticket.
 
 ## Commands
 
@@ -25,6 +25,8 @@ Inside `apps/api` (copy `.env.example` to `.env` first):
 
 - ESM project (`"type": "module"`, `nodenext`): relative imports must end in `.js`.
 - Prisma 7: DB URL lives in `prisma.config.ts` (not the schema); the client is generated into `src/generated/prisma` (git-ignored, regenerated on install/build) and connects through `@prisma/adapter-pg`. `PrismaModule` is global; inject `PrismaService`.
+- Request/response contracts are Zod schemas in `packages/contracts` (`@mimir/contracts`, compiled to `dist`; the API's `prebuild`/`pretest`/`pretest:e2e`/`prestart:dev` scripts rebuild it). Validate inputs with `new ZodValidationPipe(schema)` (`src/common`), which answers 400 `{ statusCode, error, message: 'Validation failed', issues: [{ path, message }] }`. Map Prisma rows to contract DTOs (ISO date strings) in a `*.mapper.ts`; use `hasPrismaCode(error, 'P2002' | 'P2025')` to translate to 409/404.
+- Feature modules (e.g. `src/projects`) resolve their workspace through `WorkspacesService.getDefault()`; archiving is logical (`status` + `archivedAt`), with no DELETE endpoints.
 - Global prefix and app setup live in `src/configure-app.ts` — e2e tests must call `configureApp(app)` so routes match production.
 - Models use `@map`/`@@map` to snake_case tables/columns, UUID ids (`@db.Uuid`), and `Timestamptz` timestamps; deletes are logical (`archivedAt`).
 - Rules Prisma cannot express (key format, positive numbers, no self-references) are CHECK constraints appended by hand to the migration SQL: create migrations with `prisma migrate dev --create-only`, edit, then apply. After any schema change, `pnpm exec prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script` must print an empty migration. Partial unique indexes use the `partialIndexes` preview (`@@unique([...], where: raw("..."))`).
