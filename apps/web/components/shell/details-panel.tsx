@@ -2,7 +2,12 @@
 
 import { Button } from '@mimir/ui';
 import { X } from 'lucide-react';
-import { useRef, type KeyboardEvent, type PointerEvent } from 'react';
+import {
+  useEffect,
+  useRef,
+  type KeyboardEvent,
+  type PointerEvent,
+} from 'react';
 import {
   PANEL_MAX_WIDTH,
   PANEL_MIN_WIDTH,
@@ -10,14 +15,36 @@ import {
 } from '../../features/shell/shell-store';
 
 const KEYBOARD_STEP = 20;
+const OVERLAY_QUERY = '(max-width: 767px)';
+export const PANEL_TOGGLE_ID = 'details-panel-toggle';
 
 export function DetailsPanel() {
   const panelWidth = useShellStore((state) => state.panelWidth);
   const setPanelWidth = useShellStore((state) => state.setPanelWidth);
   const togglePanel = useShellStore((state) => state.togglePanel);
+  const panelOpen = useShellStore((state) => state.panelOpen);
+  const panelToggles = useShellStore((state) => state.panelToggles);
   const drag = useRef<{ startX: number; startWidth: number } | null>(null);
+  const closeButton = useRef<HTMLButtonElement>(null);
+
+  // Below the breakpoint each control hides the other, so the keyboard must
+  // move with the panel. A docked panel leaves the toggle where it is.
+  useEffect(() => {
+    if (panelToggles === 0 || !matchMedia(OVERLAY_QUERY).matches) return;
+    if (panelOpen) closeButton.current?.focus();
+    else document.getElementById(PANEL_TOGGLE_ID)?.focus();
+    // Only when the user toggles, never on other state changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [panelToggles]);
+
+  function onPanelKeyDown(event: KeyboardEvent<HTMLElement>) {
+    if (event.key === 'Escape' && matchMedia(OVERLAY_QUERY).matches) {
+      togglePanel();
+    }
+  }
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
+    if (event.button !== 0) return;
     event.currentTarget.setPointerCapture(event.pointerId);
     drag.current = { startX: event.clientX, startWidth: panelWidth };
   }
@@ -43,7 +70,13 @@ export function DetailsPanel() {
   }
 
   return (
-    <aside aria-label="Details" className="shell-details relative shrink-0">
+    // Escape from anywhere inside closes the floating panel.
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
+    <aside
+      aria-label="Details"
+      className="shell-details relative shrink-0"
+      onKeyDown={onPanelKeyDown}
+    >
       <div
         role="separator"
         aria-label="Resize details panel"
@@ -58,7 +91,7 @@ export function DetailsPanel() {
         onPointerUp={() => {
           drag.current = null;
         }}
-        onPointerCancel={() => {
+        onLostPointerCapture={() => {
           drag.current = null;
         }}
         onKeyDown={onKeyDown}
@@ -71,6 +104,7 @@ export function DetailsPanel() {
             size="icon"
             className="shell-details-close size-8"
             aria-label="Close details panel"
+            ref={closeButton}
             onClick={togglePanel}
           >
             <X aria-hidden className="size-4" />

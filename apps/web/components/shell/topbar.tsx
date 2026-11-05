@@ -3,6 +3,7 @@
 import { Button } from '@mimir/ui';
 import { PanelLeft, PanelRight } from 'lucide-react';
 import { useShellStore } from '../../features/shell/shell-store';
+import { PANEL_TOGGLE_ID } from './details-panel';
 
 export function Topbar() {
   const sidebarCollapsed = useShellStore((state) => state.sidebarCollapsed);
@@ -26,6 +27,7 @@ export function Topbar() {
       <Button
         variant="ghost"
         size="icon"
+        id={PANEL_TOGGLE_ID}
         className="shell-panel-toggle size-9"
         aria-label={panelOpen ? 'Close details panel' : 'Open details panel'}
         aria-expanded={panelOpen}

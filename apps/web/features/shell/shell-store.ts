@@ -12,6 +12,8 @@ type ShellPreferences = {
 };
 
 type ShellStore = ShellPreferences & {
+  /** Counts user toggles, so restoring stored state never moves the focus. */
+  panelToggles: number;
   hydrate: () => void;
   toggleSidebar: () => void;
   togglePanel: () => void;
@@ -102,13 +104,17 @@ export const useShellStore = create<ShellStore>((set, get) => {
     sidebarCollapsed: false,
     panelOpen: false,
     panelWidth: PANEL_DEFAULT_WIDTH,
+    panelToggles: 0,
     hydrate: () => {
       const preferences = readPreferences();
       set(preferences);
       applyToDocument(preferences);
     },
     toggleSidebar: () => update({ sidebarCollapsed: !get().sidebarCollapsed }),
-    togglePanel: () => update({ panelOpen: !get().panelOpen }),
+    togglePanel: () => {
+      set({ panelToggles: get().panelToggles + 1 });
+      update({ panelOpen: !get().panelOpen });
+    },
     setPanelWidth: (width) => update({ panelWidth: clampPanelWidth(width) }),
   };
 });

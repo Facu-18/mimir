@@ -511,6 +511,201 @@ test.describe('unsaved changes', () => {
     await expect(discardDialog(page)).toBeHidden();
   });
 
+  async function draftFromSettings(page: Page, text = 'my draft') {
+    await ready(page, '/settings/');
+    await page.getByRole('link', { name: 'Component gallery' }).click();
+    await expect(page.getByLabel('Draft')).toBeVisible();
+    await page.getByLabel('Draft').fill(text);
+    await expect(page.locator('html')).toHaveAttribute(
+      'data-unsaved-changes',
+      'true',
+    );
+  }
+
+  test('Discard from a link leaves no extra stop behind', async ({ page }) => {
+    await draftFromSettings(page);
+
+    await navLink(page, 'Tickets').click();
+    await page.getByRole('button', { name: 'Discard' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Tickets');
+
+    await page.goBack();
+    await expect(page.getByLabel('Draft')).toHaveValue('');
+    await page.goBack();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Settings',
+    );
+  });
+
+  test('a page reached again after Discard is protected and can be left', async ({
+    page,
+  }) => {
+    await draftFromSettings(page);
+    await navLink(page, 'Tickets').click();
+    await page.getByRole('button', { name: 'Discard' }).click();
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Tickets');
+    await page.goBack();
+    await page.getByLabel('Draft').fill('second draft');
+    await expect(page.locator('html')).toHaveAttribute(
+      'data-unsaved-changes',
+      'true',
+    );
+
+    await page.goBack();
+    await page.getByRole('button', { name: 'Discard' }).click();
+
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+      'Settings',
+    );
+  });
+
+  test('stays protected when Discard has nowhere to go', async ({ page }) => {
+    await typeDraft(page);
+    await page.evaluate(() => {
+      window.history.go = () => undefined;
+    });
+
+    await page.goBack();
+    await page.getByRole('button', { name: 'Discard' }).click();
+    await page.waitForTimeout(1000);
+    expect(pathname(page)).toBe('/gallery/');
+    await expect(page.locator('html')).toHaveAttribute(
+      'data-unsaved-changes',
+      'true',
+    );
+
+    await navLink(page, 'Ideas').click();
+
+    await expect(discardDialog(page)).toBeVisible();
+  });
+
+  test('moving inside the page does not ask', async ({ page }) => {
+    await typeDraft(page);
+
+    await page.evaluate(() => {
+      window.location.hash = 'section';
+    });
+    await page.waitForTimeout(100);
+    await expect(discardDialog(page)).toBeHidden();
+
+    await page.goBack();
+    await page.waitForTimeout(100);
+    await expect(discardDialog(page)).toBeHidden();
+    await expect(page.getByLabel('Draft')).toHaveValue('my draft');
+
+    await page.goBack();
+    await expect(discardDialog(page)).toBeVisible();
+  });
+
+  test('the skip link works while dirty', async ({ page }) => {
+    await typeDraft(page);
+    const skip = page.getByRole('link', { name: 'Skip to content' });
+
+    await skip.focus();
+    await page.keyboard.press('Enter');
+
+    await expect(page.getByRole('main')).toBeFocused();
+    await expect(discardDialog(page)).toBeHidden();
+    await expect(page.getByLabel('Draft')).toHaveValue('my draft');
+  });
+
+  for (const steps of [2, 3]) {
+    test(`jumping back ${steps} entries asks and can be undone`, async ({
+      page,
+    }) => {
+      await ready(page, '/ideas/');
+      await navLink(page, 'Documents').click();
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+        'Documents',
+      );
+      await navLink(page, 'Settings').click();
+      await expect(page.getByRole('heading', { level: 1 })).toHaveText(
+        'Settings',
+      );
+      await page.getByRole('link', { name: 'Component gallery' }).click();
+      await page.getByLabel('Draft').fill('my draft');
+      await expect(page.locator('html')).toHaveAttribute(
+        'data-unsaved-changes',
+        'true',
+      );
+
+      await page.evaluate((delta) => window.history.go(-delta), steps);
+
+      await expect(discardDialog(page)).toBeVisible();
+      expect(pathname(page)).toBe('/gallery/');
+      await page.getByRole('button', { name: 'Keep editing' }).click();
+      await expect(page.getByLabel('Draft')).toHaveValue('my draft');
+
+      await page.goBack();
+      await page.getByRole('button', { name: 'Discard' }).click();
+      await expect(page.locator('html')).not.toHaveAttribute(
+        'data-unsaved-changes',
+        'true',
+      );
+      expect(pathname(page)).not.toBe('/gallery/');
+    });
+  }
+
+  test('two quick Backs on a busy page do not lose the draft', async ({
+    page,
+    context,
+  }) => {
+    await draftFromSettings(page);
+    const cdp = await context.newCDPSession(page);
+    const { currentIndex, entries } = (await cdp.send(
+      'Page.getNavigationHistory',
+    )) as {
+      currentIndex: number;
+      entries: { id: number }[];
+    };
+
+    await page.evaluate(() => {
+      setTimeout(() => {
+        const until = performance.now() + 400;
+        while (performance.now() < until);
+      }, 0);
+    });
+    await cdp.send('Page.navigateToHistoryEntry', {
+      entryId: entries[currentIndex - 1]!.id,
+    });
+    await cdp
+      .send('Page.navigateToHistoryEntry', {
+        entryId: entries[currentIndex - 2]!.id,
+      })
+      .catch(() => undefined);
+
+    await expect(discardDialog(page)).toBeVisible();
+    expect(pathname(page)).toBe('/gallery/');
+    await page.getByRole('button', { name: 'Keep editing' }).click();
+    await expect(page.getByLabel('Draft')).toHaveValue('my draft');
+  });
+
+  test('Keep editing returns the keyboard to the field', async ({ page }) => {
+    await typeDraft(page, 'abc');
+    await page.getByLabel('Draft').focus();
+
+    await page.goBack();
+    await expect(discardDialog(page)).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(discardDialog(page)).toBeHidden();
+    await page.keyboard.type('Z');
+
+    await expect(page.getByLabel('Draft')).toHaveValue('abcZ');
+  });
+
+  test('Keep editing returns the keyboard to the link that asked', async ({
+    page,
+  }) => {
+    await typeDraft(page);
+    const link = navLink(page, 'Ideas');
+
+    await link.focus();
+    await page.keyboard.press('Enter');
+    await page.getByRole('button', { name: 'Keep editing' }).click();
+
+    await expect(link).toBeFocused();
+  });
+
   test('reload and closing use the browser prompt only while dirty', async ({
     page,
   }) => {
@@ -595,6 +790,44 @@ test.describe('small windows', () => {
     expect(filter).toBe('blur(12px)');
     await page.getByRole('button', { name: 'Close details panel' }).click();
     await expect(panel(page)).toBeHidden();
+  });
+
+  test('move the keyboard into the panel and back out', async ({ page }) => {
+    await ready(page);
+    const toggle = page.getByRole('button', { name: 'Open details panel' });
+
+    await toggle.focus();
+    await page.keyboard.press('Enter');
+    await expect(
+      page.getByRole('button', { name: 'Close details panel' }),
+    ).toBeFocused();
+
+    await page.keyboard.press('Enter');
+    await expect(panel(page)).toBeHidden();
+    await expect(toggle).toBeFocused();
+  });
+
+  test('close the floating panel with Escape', async ({ page }) => {
+    await ready(page);
+    const toggle = page.getByRole('button', { name: 'Open details panel' });
+    await toggle.focus();
+    await page.keyboard.press('Enter');
+
+    await page.keyboard.press('Escape');
+
+    await expect(panel(page)).toBeHidden();
+    await expect(toggle).toBeFocused();
+  });
+
+  test('do not take the keyboard when the panel was already open', async ({
+    page,
+  }) => {
+    await storeShell(page, { panelOpen: true });
+    await ready(page);
+
+    await expect(
+      page.getByRole('button', { name: 'Close details panel' }),
+    ).not.toBeFocused();
   });
 
   test('adapt when the window shrinks and grows, keeping the choice', async ({

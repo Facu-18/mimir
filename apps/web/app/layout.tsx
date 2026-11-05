@@ -7,6 +7,7 @@ import {
   TooltipProvider,
 } from '@mimir/ui';
 import { AppShell } from '../components/shell/app-shell';
+import { GUARD_INIT_SCRIPT } from '../features/shell/guard-init';
 import { SHELL_INIT_SCRIPT } from '../features/shell/shell-store';
 import './globals.css';
 
@@ -22,6 +23,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         <script dangerouslySetInnerHTML={{ __html: SHELL_INIT_SCRIPT }} />
+        <script dangerouslySetInnerHTML={{ __html: GUARD_INIT_SCRIPT }} />
       </head>
       <body className="min-h-dvh bg-bg text-text">
         <ThemeSync />

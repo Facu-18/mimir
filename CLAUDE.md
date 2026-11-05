@@ -50,7 +50,7 @@ Inside `apps/api` (copy `.env.example` to `.env` first):
 - `packages/ui` is consumed as source (`transpilePackages`). Keep `apps/web` compatible with `output: 'export'`: no SSR, Server Actions or API Routes.
 - The theme is applied before first paint by `THEME_INIT_SCRIPT`; keep it in step with `readThemeChoice` and `applyTheme`. `ThemeSync` in the root layout follows system changes on every screen.
 - `AppShell` in the root layout stays mounted across routes. Shell state lives in `useShellStore`, which CSS reads through attributes on `<html>`; keep `SHELL_INIT_SCRIPT` in step with it. Shell CSS is in `@layer utilities`, because Tailwind utilities beat the `components` layer.
-- A screen with editable state must call `useUnsavedChanges(dirty)`, and any programmatic navigation must go through `useGuardedNavigate()`, or edits can be lost without a prompt. Routes end in `/` (`trailingSlash`).
+- A screen with editable state must call `useUnsavedChanges(dirty)`, and any programmatic navigation must go through `useGuardedNavigate()`, or edits can be lost without a prompt. The guard's `popstate` listener is registered from `<head>` (`GUARD_INIT_SCRIPT`) because it must run before Next's. Routes end in `/` (`trailingSlash`).
 - Browser tests must assert real behaviour, such as positions and whether things close, rather than only computed styles; run them with and without reduced motion.
 - pnpm enforces a minimum release age. If `pnpm add` writes `minimumReleaseAgeExclude` into `pnpm-workspace.yaml`, the version is too new: pick an older one and remove the exclusion instead of committing it.
 

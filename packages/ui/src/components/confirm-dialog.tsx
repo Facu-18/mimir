@@ -1,6 +1,7 @@
 'use client';
 
 import { AlertDialog } from 'radix-ui';
+import { useRef } from 'react';
 import { Button } from './button';
 
 export type ConfirmDialogProps = {
@@ -23,6 +24,14 @@ export function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  // With no trigger to return to, focus would fall to the body on closing and
+  // the next keystroke would be lost. Read while rendering: by the first
+  // effect, focus has already moved into the dialog.
+  const returnFocusTo = useRef<Element | null>(null);
+  const wasOpen = useRef(false);
+  if (open && !wasOpen.current) returnFocusTo.current = document.activeElement;
+  wasOpen.current = open;
+
   return (
     <AlertDialog.Root
       open={open}
@@ -32,7 +41,16 @@ export function ConfirmDialog({
     >
       <AlertDialog.Portal>
         <AlertDialog.Overlay className="animate-overlay fixed inset-0 bg-overlay" />
-        <AlertDialog.Content className="glass animate-panel fixed top-1/2 left-1/2 max-h-[calc(100dvh-2rem)] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg p-6 text-text">
+        <AlertDialog.Content
+          className="glass animate-panel fixed top-1/2 left-1/2 max-h-[calc(100dvh-2rem)] w-[min(28rem,calc(100vw-2rem))] -translate-x-1/2 -translate-y-1/2 overflow-y-auto rounded-lg p-6 text-text"
+          onCloseAutoFocus={(event) => {
+            const target = returnFocusTo.current;
+            if (target instanceof HTMLElement && target.isConnected) {
+              event.preventDefault();
+              target.focus();
+            }
+          }}
+        >
           <AlertDialog.Title className="text-lg font-semibold">
             {title}
           </AlertDialog.Title>

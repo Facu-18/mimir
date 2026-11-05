@@ -24,6 +24,11 @@ export function AppShell({ children }: { children: ReactNode }) {
     <>
       <a
         href="#content"
+        onClick={(event) => {
+          // Moves focus without adding a history entry.
+          event.preventDefault();
+          document.getElementById('content')?.focus();
+        }}
         className="fixed top-2 left-2 z-50 -translate-y-20 rounded-md bg-accent px-3 py-2 text-sm text-on-accent focus:translate-y-0"
       >
         Skip to content
