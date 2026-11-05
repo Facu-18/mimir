@@ -29,10 +29,10 @@ Assumptions (decided here, not in the plan, except A1):
 
 | ID | Specs | Route | Status | Evidence |
 |---|---|---|---|---|
-| T1 | S4, S5 | inline | pending | API session token, CORS, port 0 and ready line |
-| T2 | S1, S4 | inline | pending | Reproducible build of the portable runtime and API copy |
-| T3 | S1, S2, S3, S6 | inline | pending | Tauri shell: process lifecycle, data paths, connection config |
-| T4 | S2, S3 | inline | pending | Web gate: starting, database screen, failure |
+| T1 | S4, S5 | inline | done | RED 14 of 18 → GREEN; API e2e 214/214, unit 39/39; manual run on port 0 printed the port, 401 without token, 503 without database · `559ac51` |
+| T2 | S1, S4 | inline | done | `prepare-runtime` produced Node v24.19.0 (checksum verified) and the API copy with no `.env`; migrations from the copy created a throwaway database, then reported nothing pending; wrong password and closed port fail without showing the password · packaging commit |
+| T3 | S1, S2, S3, S6 | inline | blocked | Code and 14 supervisor tests written, never compiled: Smart App Control blocks the build (L4) |
+| T4 | S2, S3 | inline | done | RED 17 of 19 → GREEN; browser 98/98; mutation that unmounts the app on a later failure fails its test · gate commit |
 | T5 | S1, S2, S3 | inline | pending | NSIS installer, smoke test against the installed app, docs and ADR |
 
 Route evidence: sequential units that depend on each other; no parallel writer reason; inline.
@@ -43,3 +43,5 @@ Risk: item 1 (migrations applied to the user's database), item 2 (session token,
 - L1 (2026-11-05, user): "listo master vamos con core-003"
 - L2 (2026-11-05, user): on PostgreSQL, chose "Requisito externo": the app connects to an existing PostgreSQL through a connection URL, applies migrations and shows a clear screen when it cannot find it.
 - L3 (2026-11-05, user): chose to let the agent install the toolchain. Rust 1.99.1 with `stable-x86_64-pc-windows-msvc` is installed through winget. The first attempt at the Visual Studio C++ workload failed with exit code 87 (`--wait` is not an option of `setup.exe modify`) and was relaunched without it.
+- L4 (2026-11-05): The second attempt exited with 5007 because `--passive` needs elevation from the start; the third, elevated through UAC, installed MSVC 14.51 and SDK 10.0.26100. The first Rust build then failed with "An Application Control policy has blocked this file. (os error 4551)": Smart App Control is on (`VerifiedAndReputablePolicyState` = 1) and blocks every unsigned build script and proc-macro DLL. It would also block the unsigned installer on this machine. User decision: "Lo apago yo". T3 and T5 wait for it.
+- L5 (2026-11-05): Findings on the way. `pnpm deploy` copies `apps/api/.env`, so the script copies a fixed list and refuses any `.env` file. Prisma's CLI and `dotenv` moved to API dependencies because migrations run in the installed app. The runtime copy is 392 MB in 12,654 files and takes about 6 minutes to prepare; installer size is measured in T5. The gate test first failed for a race in the test (it marked the page before the first status replaced the static render), not for a remount.
