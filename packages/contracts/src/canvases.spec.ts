@@ -45,6 +45,25 @@ describe('sceneSchema', () => {
     ]);
   });
 
+  it('rejects images embedded anywhere in the scene', () => {
+    const dataURL = 'data:image/png;base64,AAAA';
+    const inElement = { elements: [{ id: 'a', type: 'image', dataURL }] };
+    const nested = { elements: [{ id: 'a', type: 'x', customData: { deep: [{ dataURL }] } }] };
+    const inAppState = { elements: [], appState: { dataURL } };
+
+    for (const scene of [inElement, nested, inAppState]) {
+      expect(messages(sceneSchema.safeParse(scene))).toEqual([
+        'Images must be uploaded as assets, not embedded in the scene',
+      ]);
+    }
+  });
+
+  it('keeps a dataURL key that holds no embedded data', () => {
+    const scene = { elements: [{ id: 'a', type: 'x', customData: { dataURL: 'https://a.b/c.png' } }] };
+
+    expect(sceneSchema.safeParse(scene).success).toBe(true);
+  });
+
   it('rejects scenes nested too deeply without overflowing the stack', () => {
     let deep: unknown = 'leaf';
     for (let i = 0; i < 100_000; i++) deep = { deep };

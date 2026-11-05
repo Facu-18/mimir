@@ -1,3 +1,4 @@
+export * from './assets.js';
 export * from './canvases.js';
 export * from './documents.js';
 export * from './epics.js';

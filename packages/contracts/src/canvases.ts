@@ -1,10 +1,12 @@
 import { z } from 'zod';
+import { assetSchema } from './assets.js';
 
 export const CURRENT_SCENE_SCHEMA_VERSION = 1;
 export const MAX_SCENE_DEPTH = 64;
 export const MAX_SCENE_ELEMENTS = 200_000;
 
 const NUL = String.fromCharCode(0);
+const EMBEDDED_IMAGE_MESSAGE = 'Images must be uploaded as assets, not embedded in the scene';
 
 // With the u flag this only matches a surrogate that is not part of a pair,
 // such as text cut in the middle of an emoji.
@@ -40,6 +42,9 @@ function findSceneProblem(root: unknown): string | null {
     for (const [key, item] of Object.entries(value)) {
       const problem = findTextProblem(key);
       if (problem) return problem;
+      if (key === 'dataURL' && typeof item === 'string' && /^data:/i.test(item)) {
+        return EMBEDDED_IMAGE_MESSAGE;
+      }
       stack.push([item, depth + 1]);
     }
   }
@@ -57,7 +62,7 @@ const fileReferenceSchema = z
     if (typeof value === 'object' && value !== null && 'dataURL' in value) {
       ctx.addIssue({
         code: 'custom',
-        message: 'Images must be uploaded as assets, not embedded in the scene',
+        message: EMBEDDED_IMAGE_MESSAGE,
         abort: true,
       });
     }
@@ -186,6 +191,8 @@ export const canvasExportSchema = z.object({
   schemaVersion: z.number().int(),
   revision: z.number().int(),
   scene: sceneSchema,
+  /** What the scene references; the bytes stay in `GET /assets/:id/content`. */
+  assets: z.array(assetSchema),
 });
 
 export type CreateCanvasInput = z.infer<typeof createCanvasSchema>;

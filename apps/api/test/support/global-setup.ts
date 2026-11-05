@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process';
+import { rmSync } from 'node:fs';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '../../src/generated/prisma/client.js';
-import { resolveTestDatabaseUrl } from './test-database.js';
+import { resolveTestDatabaseUrl, TEST_ASSETS_DIR } from './test-database.js';
 
 async function withClient<T>(
   connectionString: string,
@@ -18,7 +19,7 @@ async function withClient<T>(
 }
 
 /** Recreates the test database from scratch and applies every migration. */
-export default async function setup(): Promise<void> {
+export default async function setup(): Promise<() => void> {
   const testUrl = resolveTestDatabaseUrl();
   const databaseName = new URL(testUrl).pathname.replace(/^\//, '');
   const adminUrl = new URL(testUrl);
@@ -36,4 +37,6 @@ export default async function setup(): Promise<void> {
     stdio: 'pipe',
     shell: process.platform === 'win32',
   });
+
+  return () => rmSync(TEST_ASSETS_DIR, { recursive: true, force: true });
 }

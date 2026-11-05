@@ -1,4 +1,9 @@
 import 'dotenv/config';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+/** Fixed name: the Vitest config and the global setup load this separately. */
+export const TEST_ASSETS_DIR = join(tmpdir(), 'mimir-assets-e2e');
 
 const DEFAULT_TEST_DATABASE_URL =
   'postgresql://mimir:mimir@localhost:5433/mimir_test';

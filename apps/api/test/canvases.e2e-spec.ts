@@ -493,6 +493,7 @@ describe('Canvases (e2e)', () => {
       expect(response.body).toEqual({
         format: 'mimir-canvas',
         formatVersion: 1,
+        assets: [],
         title: 'Diseño: mapa / v2',
         schemaVersion: 1,
         revision: 1,
