@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import {
+  formatTicketCode,
   parseTicketCode,
   type CreateTicketInput,
   type ListTicketsQuery,
@@ -61,7 +62,14 @@ export class TicketsService {
     id: string,
     input: UpdateTicketInput,
   ): Promise<TicketWithProjectKey> {
+    if (input.parentId === id) {
+      throw new BadRequestException('A ticket cannot be its own parent');
+    }
     return this.prisma.$transaction(async (tx) => {
+      // Graph writes take the project graph lock before any row lock.
+      if (input.parentId !== undefined) {
+        await this.lockGraph(tx, await this.projectIdOf(tx, id));
+      }
       const current = await this.lockAndFind(tx, id);
       const data: Prisma.TicketUncheckedUpdateInput = {};
       const changes: Record<string, Prisma.InputJsonObject> = {};
@@ -101,6 +109,22 @@ export class TicketsService {
       // Rich text can be large; the history only notes that it changed.
       if (descriptionChanged) changes.description = { changed: true };
 
+      if (input.epicId !== undefined && input.epicId !== current.epicId) {
+        if (input.epicId !== null) {
+          await this.assertAssignableEpic(tx, current.projectId, input.epicId);
+        }
+        data.epicId = input.epicId;
+        changes.epicId = { from: current.epicId, to: input.epicId };
+      }
+
+      if (input.parentId !== undefined && input.parentId !== current.parentId) {
+        if (input.parentId !== null) {
+          await this.assertAssignableParent(tx, current, input.parentId);
+        }
+        data.parentId = input.parentId;
+        changes.parentId = { from: current.parentId, to: input.parentId };
+      }
+
       if (data.status !== undefined) {
         const status = data.status as TicketStatus;
         data.sortOrder = await this.nextSortOrder(
@@ -120,6 +144,98 @@ export class TicketsService {
       });
       await this.recordEvent(tx, id, 'ticket.updated', { changes });
       return updated;
+    });
+  }
+
+  /** Replaces the ticket's labels with exactly `labelIds`. */
+  async setLabels(
+    id: string,
+    labelIds: string[],
+  ): Promise<TicketWithProjectKey> {
+    return this.prisma.$transaction(async (tx) => {
+      const current = await this.lockAndFind(tx, id);
+      // KEY SHARE keeps the labels from being deleted until this transaction
+      // ends, so a concurrent DELETE either happens first (404) or waits.
+      await tx.$queryRaw`SELECT id FROM labels WHERE id = ANY(${labelIds}::uuid[]) FOR KEY SHARE`;
+      const labels = await tx.label.findMany({
+        where: { id: { in: labelIds } },
+      });
+      if (labels.length !== labelIds.length) {
+        throw new NotFoundException('Label not found');
+      }
+      if (
+        labels.some(
+          (l) => l.projectId !== null && l.projectId !== current.projectId,
+        )
+      ) {
+        throw new BadRequestException(
+          'Label must belong to the same project or be global',
+        );
+      }
+      const existing = current.labels.map((link) => link.labelId);
+      const added = labelIds.filter((labelId) => !existing.includes(labelId));
+      const removed = existing.filter((labelId) => !labelIds.includes(labelId));
+      if (added.length === 0 && removed.length === 0) return current;
+
+      await tx.ticketLabel.deleteMany({
+        where: { ticketId: id, labelId: { in: removed } },
+      });
+      await tx.ticketLabel.createMany({
+        data: added.map((labelId) => ({ ticketId: id, labelId })),
+      });
+      await this.recordEvent(tx, id, 'ticket.labels_changed', {
+        added,
+        removed,
+      });
+      return this.findByIdOrThrow(tx, id);
+    });
+  }
+
+  /** Replaces the tickets this one depends on, rejecting any cycle. */
+  async setDependencies(
+    id: string,
+    dependsOnTicketIds: string[],
+  ): Promise<TicketWithProjectKey> {
+    if (dependsOnTicketIds.includes(id)) {
+      throw new BadRequestException('A ticket cannot depend on itself');
+    }
+    return this.prisma.$transaction(async (tx) => {
+      await this.lockGraph(tx, await this.projectIdOf(tx, id));
+      const current = await this.lockAndFind(tx, id);
+      const targets = await tx.ticket.findMany({
+        where: { id: { in: dependsOnTicketIds } },
+      });
+      if (targets.length !== dependsOnTicketIds.length) {
+        throw new NotFoundException('Dependency ticket not found');
+      }
+      if (targets.some((t) => t.projectId !== current.projectId)) {
+        throw new BadRequestException(
+          'Dependencies must belong to the same project',
+        );
+      }
+      const existing = current.dependencies.map((d) => d.dependsOnTicketId);
+      const added = dependsOnTicketIds.filter((t) => !existing.includes(t));
+      const removed = existing.filter((t) => !dependsOnTicketIds.includes(t));
+      if (added.length === 0 && removed.length === 0) return current;
+      if (targets.some((t) => added.includes(t.id) && t.archivedAt)) {
+        throw new ConflictException('Cannot link to an archived ticket');
+      }
+      await this.assertNoDependencyCycle(tx, current, added);
+
+      await tx.ticketDependency.deleteMany({
+        where: { ticketId: id, dependsOnTicketId: { in: removed } },
+      });
+      await tx.ticketDependency.createMany({
+        data: added.map((dependsOnTicketId) => ({
+          ticketId: id,
+          dependsOnTicketId,
+        })),
+      });
+      await this.recordEvent(tx, id, 'ticket.dependencies_changed', {
+        added,
+        removed,
+      });
+      return this.findByIdOrThrow(tx, id);
     });
   }
 
@@ -193,6 +309,9 @@ export class TicketsService {
       status: query.status ? { in: query.status } : undefined,
       type: query.type ? { in: query.type } : undefined,
       priority: query.priority ? { in: query.priority } : undefined,
+      epicId: query.epicId,
+      parentId: query.parentId === 'none' ? null : query.parentId,
+      labels: query.labelId ? { some: { labelId: query.labelId } } : undefined,
     };
     if (query.archived === 'exclude') where.archivedAt = null;
     if (query.archived === 'only') where.archivedAt = { not: null };
@@ -280,8 +399,138 @@ export class TicketsService {
    * and never record the same change twice.
    */
   private async lockAndFind(tx: Tx, id: string): Promise<TicketWithProjectKey> {
-    await tx.$queryRaw`SELECT id FROM tickets WHERE id = ${id}::uuid FOR UPDATE`;
+    // NO KEY UPDATE still serializes writers of this row but, unlike FOR
+    // UPDATE, does not block foreign-key checks from rows that reference it.
+    await tx.$queryRaw`SELECT id FROM tickets WHERE id = ${id}::uuid FOR NO KEY UPDATE`;
     return this.findByIdOrThrow(tx, id);
+  }
+
+  private async projectIdOf(tx: Tx, id: string): Promise<string> {
+    const ticket = await tx.ticket.findUnique({
+      where: { id },
+      select: { projectId: true },
+    });
+    if (!ticket) throw new NotFoundException('Ticket not found');
+    return ticket.projectId;
+  }
+
+  /**
+   * Serializes parent/dependency writes within a project for the rest of the
+   * transaction, so two concurrent writes cannot jointly close a cycle.
+   * Lock order: graph lock first, then row locks.
+   */
+  private async lockGraph(tx: Tx, projectId: string): Promise<void> {
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`ticket-graph:${projectId}`}, 0))`;
+  }
+
+  /**
+   * A new edge ticket → target closes a cycle when the ticket is already
+   * reachable from the target. Only the removed edges start at the ticket,
+   * so they can never be part of such a path and the current graph is used.
+   */
+  private async assertNoDependencyCycle(
+    tx: Tx,
+    ticket: TicketWithProjectKey,
+    added: string[],
+  ): Promise<void> {
+    if (added.length === 0) return;
+    // UNION (not UNION ALL) visits each ticket once, so the check is linear
+    // in the size of the graph instead of in the number of paths.
+    const [reach] = await tx.$queryRaw<{ found: boolean }[]>`
+      WITH RECURSIVE reach(node) AS (
+        SELECT unnest(${added}::uuid[])
+        UNION
+        SELECT d.depends_on_ticket_id
+        FROM ticket_dependencies d
+        JOIN reach r ON d.ticket_id = r.node
+      )
+      SELECT EXISTS (SELECT 1 FROM reach WHERE node = ${ticket.id}::uuid) AS found`;
+    if (!reach?.found) return;
+
+    const ids = [
+      ticket.id,
+      ...(await this.shortestDependencyPath(tx, ticket, added)),
+    ];
+    const rows = await tx.ticket.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, number: true },
+    });
+    const numberOf = new Map(rows.map((row) => [row.id, row.number]));
+    const path = ids
+      .map((stepId) =>
+        formatTicketCode(ticket.project.key, numberOf.get(stepId)!),
+      )
+      .join(' → ');
+    throw new ConflictException(`Dependency would create a cycle: ${path}`);
+  }
+
+  /**
+   * Breadth-first search over the project's dependency edges from the added
+   * targets back to the ticket; returns the shortest path ending at it.
+   * Only called once a cycle is known to exist.
+   */
+  private async shortestDependencyPath(
+    tx: Tx,
+    ticket: TicketWithProjectKey,
+    added: string[],
+  ): Promise<string[]> {
+    const edges = await tx.ticketDependency.findMany({
+      where: { ticket: { projectId: ticket.projectId } },
+      select: { ticketId: true, dependsOnTicketId: true },
+    });
+    const next = new Map<string, string[]>();
+    for (const edge of edges) {
+      const targets = next.get(edge.ticketId) ?? [];
+      targets.push(edge.dependsOnTicketId);
+      next.set(edge.ticketId, targets);
+    }
+    const previous = new Map<string, string | null>(
+      added.map((start) => [start, null]),
+    );
+    const queue = [...added];
+    for (let i = 0; i < queue.length; i++) {
+      const node = queue[i];
+      if (node === ticket.id) break;
+      for (const target of next.get(node) ?? []) {
+        if (previous.has(target)) continue;
+        previous.set(target, node);
+        queue.push(target);
+      }
+    }
+    const path: string[] = [];
+    for (let node: string | null | undefined = ticket.id; node;) {
+      path.unshift(node);
+      node = previous.get(node);
+    }
+    return path;
+  }
+
+  private async assertAssignableParent(
+    tx: Tx,
+    ticket: TicketWithProjectKey,
+    parentId: string,
+  ): Promise<void> {
+    const parent = await tx.ticket.findUnique({ where: { id: parentId } });
+    if (!parent) throw new NotFoundException('Parent ticket not found');
+    if (parent.projectId !== ticket.projectId) {
+      throw new BadRequestException('Parent must belong to the same project');
+    }
+    if (parent.archivedAt) {
+      throw new ConflictException('Cannot link to an archived ticket');
+    }
+    // Walk up from the new parent; reaching the ticket means it would become
+    // its own ancestor.
+    const [cycle] = await tx.$queryRaw<{ found: boolean }[]>`
+      WITH RECURSIVE ancestors AS (
+        SELECT id, parent_id FROM tickets WHERE id = ${parentId}::uuid
+        UNION
+        SELECT t.id, t.parent_id FROM tickets t
+        JOIN ancestors a ON t.id = a.parent_id
+      )
+      SELECT EXISTS (SELECT 1 FROM ancestors WHERE id = ${ticket.id}::uuid) AS found`;
+    if (cycle?.found) {
+      throw new ConflictException('Parent would create a cycle');
+    }
   }
 
   private async findByIdOrThrow(
@@ -310,6 +559,21 @@ export class TicketsService {
         payloadJson: payload,
       },
     });
+  }
+
+  private async assertAssignableEpic(
+    tx: Tx,
+    projectId: string,
+    epicId: string,
+  ): Promise<void> {
+    const epic = await tx.epic.findUnique({ where: { id: epicId } });
+    if (!epic) throw new NotFoundException('Epic not found');
+    if (epic.projectId !== projectId) {
+      throw new BadRequestException('Epic must belong to the same project');
+    }
+    if (epic.archivedAt) {
+      throw new ConflictException('Cannot assign an archived epic');
+    }
   }
 
   private async assertProjectAcceptsTickets(projectId: string): Promise<void> {

@@ -7,14 +7,19 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import {
   createTicketSchema,
   listTicketsQuerySchema,
+  setTicketDependenciesSchema,
+  setTicketLabelsSchema,
   updateTicketSchema,
   type CreateTicketInput,
   type ListTicketsQuery,
+  type SetTicketDependenciesInput,
+  type SetTicketLabelsInput,
   type Ticket,
   type TicketList,
   type UpdateTicketInput,
@@ -61,6 +66,26 @@ export class TicketsController {
     @Body(new ZodValidationPipe(updateTicketSchema)) input: UpdateTicketInput,
   ): Promise<Ticket> {
     return toTicketDto(await this.tickets.update(id, input));
+  }
+
+  @Put(':id/labels')
+  async setLabels(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(setTicketLabelsSchema))
+    input: SetTicketLabelsInput,
+  ): Promise<Ticket> {
+    return toTicketDto(await this.tickets.setLabels(id, input.labelIds));
+  }
+
+  @Put(':id/dependencies')
+  async setDependencies(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body(new ZodValidationPipe(setTicketDependenciesSchema))
+    input: SetTicketDependenciesInput,
+  ): Promise<Ticket> {
+    return toTicketDto(
+      await this.tickets.setDependencies(id, input.dependsOnTicketIds),
+    );
   }
 
   @Post(':id/archive')

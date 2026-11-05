@@ -26,7 +26,9 @@
     "db:studio": "prisma studio",
     "prestart:dev": "pnpm --filter @mimir/contracts build",
     "pretest": "pnpm --filter @mimir/contracts build",
-    "pretest:e2e": "pnpm --filter @mimir/contracts build"
+    "pretest:e2e": "pnpm --filter @mimir/contracts build",
+    "typecheck": "tsc --noEmit",
+    "pretypecheck": "pnpm --filter @mimir/contracts build"
   },
   "dependencies": {
     "@mimir/contracts": "workspace:*",

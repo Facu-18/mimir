@@ -72,6 +72,8 @@ export const updateTicketSchema = z
     status: ticketStatusSchema.optional(),
     priority: ticketPrioritySchema.optional(),
     dueAt: dueAtSchema.optional(),
+    epicId: z.uuid({ error: 'Epic id must be a UUID' }).nullable().optional(),
+    parentId: z.uuid({ error: 'Parent id must be a UUID' }).nullable().optional(),
   })
   .refine((input) => Object.keys(input).length > 0, {
     error: 'At least one field must be provided',
@@ -94,6 +96,13 @@ function csvEnumList<const T extends readonly [string, ...string[]]>(values: T) 
   });
 }
 
+export const setTicketDependenciesSchema = z.strictObject({
+  dependsOnTicketIds: z
+    .array(z.uuid({ error: 'Ticket id must be a UUID' }))
+    .max(100, { error: 'A ticket can have at most 100 dependencies' })
+    .transform((ids) => [...new Set(ids)]),
+});
+
 export const TICKET_SORT_FIELDS = [
   'position',
   'number',
@@ -108,6 +117,14 @@ export const listTicketsQuerySchema = z.strictObject({
   status: csvEnumList(TICKET_STATUSES).optional(),
   type: csvEnumList(TICKET_TYPES).optional(),
   priority: csvEnumList(TICKET_PRIORITIES).optional(),
+  epicId: z.uuid({ error: 'Epic id must be a UUID' }).optional(),
+  labelId: z.uuid({ error: 'Label id must be a UUID' }).optional(),
+  /** A parent ticket id, or `none` for top-level tickets only. */
+  parentId: z
+    .union([z.literal('none'), z.uuid()], {
+      error: 'Parent id must be a UUID or "none"',
+    })
+    .optional(),
   archived: z.enum(['exclude', 'include', 'only']).default('exclude'),
   sort: z.enum(TICKET_SORT_FIELDS).default('position'),
   order: z.enum(['asc', 'desc']).default('asc'),
@@ -126,6 +143,10 @@ export const ticketSchema = z.object({
   priority: ticketPrioritySchema,
   parentId: z.uuid().nullable(),
   epicId: z.uuid().nullable(),
+  labelIds: z.array(z.uuid()),
+  dependsOnTicketIds: z.array(z.uuid()),
+  /** True while any dependency is neither done/canceled nor archived. */
+  isBlocked: z.boolean(),
   sortOrder: z.number(),
   dueAt: z.iso.datetime().nullable(),
   completedAt: z.iso.datetime().nullable(),
@@ -140,5 +161,6 @@ export type TicketPriority = z.infer<typeof ticketPrioritySchema>;
 export type CreateTicketInput = z.infer<typeof createTicketSchema>;
 export type UpdateTicketInput = z.infer<typeof updateTicketSchema>;
 export type ListTicketsQuery = z.infer<typeof listTicketsQuerySchema>;
+export type SetTicketDependenciesInput = z.infer<typeof setTicketDependenciesSchema>;
 export type Ticket = z.infer<typeof ticketSchema>;
 export type TicketList = { items: Ticket[] };
