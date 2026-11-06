@@ -6,6 +6,7 @@ import {
   ThemeSync,
   TooltipProvider,
 } from '@mimir/ui';
+import { DesktopGate } from '../components/desktop/desktop-gate';
 import { AppShell } from '../components/shell/app-shell';
 import { GUARD_INIT_SCRIPT } from '../features/shell/guard-init';
 import { SHELL_INIT_SCRIPT } from '../features/shell/shell-store';
@@ -29,7 +30,9 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <ThemeSync />
         <MotionProvider>
           <TooltipProvider>
-            <AppShell>{children}</AppShell>
+            <DesktopGate>
+              <AppShell>{children}</AppShell>
+            </DesktopGate>
           </TooltipProvider>
         </MotionProvider>
       </body>
